@@ -17,7 +17,11 @@ class TrashButton(QPushButton):
         self.clicked.connect(self.clickHandler)
 
     def clickHandler(self):
-        log.info(f"Trash can clicked")
+        #log.info(f"Trash button clicked")
+        QMessageBox.information(self, 
+            'Trash',
+            'TODO: dialog to empty trash or select items to restore.', 
+            QMessageBox.Ok)
 
     def dragEnterEvent(self, e):
         if e.mimeData().hasFormat('text/plain'):
