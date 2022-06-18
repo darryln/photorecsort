@@ -3,7 +3,7 @@
 from defaults import *
 import os
 import PIL
-from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtCore import pyqtSlot, QRect, QSize
 from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QKeySequence
 from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction
 from PyQt5.QtCore import Qt, QMimeData
@@ -70,9 +70,13 @@ class ImageView(QLabel):
         # get image file name
         mimedata.setText(self.filepath)
         drag.setMimeData(mimedata)
-        pixmap = QPixmap(self.width(),self.height()) # shrink it to a thumbnail
+        pixmap = QPixmap(self.width(),self.height())
         painter = QPainter(pixmap)
-        painter.drawPixmap(self.rect(), self.grab())
+        dragIconSize = QSize(self.width(), self.height())
+        dragIconSize.scale(QSize(128,128), Qt.AspectRatioMode.KeepAspectRatio)
+        dragIconRect = QRect(event.pos(),dragIconSize)
+        painter.setOpacity(0.6)
+        painter.drawPixmap(dragIconRect, self.grab())
         painter.end()
         drag.setPixmap(pixmap)
         drag.setHotSpot(event.pos())
