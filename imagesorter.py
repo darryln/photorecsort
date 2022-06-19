@@ -1,8 +1,7 @@
 #!/usr/bin/python
 
 from defaults import *
-#from PIL import Image, features
-from ast import BitXor
+from config import *
 import faulthandler; faulthandler.enable()
 import sys
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent, QSize
@@ -55,10 +54,8 @@ class ImageSorter(QMainWindow):
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress: #or event.type() == QEvent.KeyRelease:
-            #log.info(event.key())
-            #k = event.key()
-            #m = event.modifiers()
-            #log.info(f"eventFilter: key {hex(k)} modifiers {hex(m)}" )
+            #log.info(f"eventFilter: key {hex(event.key())} modifiers {hex(event.modifiers())} text '{event.text()}'")
+            #log.info(f"eventFilter: nativeVirtualKey {hex(event.nativeVirtualKey())} nativeModifiers {hex(event.modifiers())} nativeScanCode {hex(event.nativeScanCode())}") 
             if not self.ignoreKeysFlag:
                 self.keyPressEvent(event)
                 return True
@@ -81,7 +78,7 @@ class ImageSorter(QMainWindow):
         #log.info(f"keyHandler:{hex(k)}")
         if k == Qt.Key.Key_Escape:
             self.quitBtnClicked()
-        if k == k == Qt.Key.Key_Q:
+        elif k == Qt.Key.Key_Q:
             self.quitBtnClicked()
         elif k == Qt.Key.Key_Right:
             self.nextBtnClicked()
@@ -108,6 +105,13 @@ class ImageSorter(QMainWindow):
         QMessageBox.information(self, 
             'Config',
             'TODO: dialog to edit program options.', 
+            QMessageBox.Ok)
+
+    def filterBtnClicked(self):
+        #log.info('filter button clicked')
+        QMessageBox.information(self, 
+            'Filter',
+            'TODO: dialog to edit file filter options.', 
             QMessageBox.Ok)
 
     """
@@ -140,6 +144,7 @@ class ImageSorter(QMainWindow):
         self.prevBtn.setEnabled(False)
         self.quitBtn.setEnabled(False)
         self.configBtn.setEnabled(False)
+        self.filterBtn.setEnabled(False)
         self.loadBtn.setEnabled(False)
 
     def enableButtons(self):
@@ -147,6 +152,7 @@ class ImageSorter(QMainWindow):
         self.prevBtn.setEnabled(True)
         self.quitBtn.setEnabled(True)
         self.configBtn.setEnabled(True)
+        self.filterBtn.setEnabled(True)
         self.loadBtn.setEnabled(True)
 
     def prevBtnClicked(self):
@@ -244,8 +250,12 @@ class ImageSorter(QMainWindow):
         # set main window defaults, initial size/pos
         QToolTip.setFont(QFont('SansSerif', 10))
         scrn = QDesktopWidget().availableGeometry()
-        scrn.setHeight(3*scrn.height()//4)
-        scrn.setWidth(3*scrn.width()//4)
+        # TODO: handle multiheaded systems
+		#self.screenCount = QDesktopWidget().screenCount()
+        #self.whichScreen = QDesktopWidget().screenNumber(self)
+        self.maxSize = QSize(scrn.height(), scrn.width())
+        scrn.setHeight(int(scrn.height()*DEFAULT_MAIN_WINDOW_SIZE_FACTOR))
+        scrn.setWidth(int(scrn.width()*DEFAULT_MAIN_WINDOW_SIZE_FACTOR))
         self.resize(scrn.width(),scrn.height())
         self.setWindowTitle('Image Sorter')
         frame = self.frameGeometry()
@@ -255,16 +265,14 @@ class ImageSorter(QMainWindow):
 
         # create layouts
         self.mainLayout = QVBoxLayout() # cw and btn
-        self.mainLayout.addStretch(1)
+        self.mainLayout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         self.hLayout = QHBoxLayout() # main and dest
         self.destLayout = QGridLayout()
         self.btnLayout = QHBoxLayout()
 
         # create image sink
         self.imageView = ImageView(self)
-        #self.imageView.setDragEnabled(True)
-        self.imageView.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
+        self.imageView.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
         # path to icon files 
         # TODO: compile to resource
@@ -284,7 +292,7 @@ class ImageSorter(QMainWindow):
         DBF = 'Arial Narrow' # font
         DBFP = 18 # font point size
         
-        # create buttons
+        # create feature buttons
         self.configBtn = QPushButton(QIcon(ICON_PATH+'config.png'),'', self)
         self.configBtn.setToolTip('Configure settings')  
         self.configBtn.setMinimumHeight(BH)
@@ -292,8 +300,15 @@ class ImageSorter(QMainWindow):
         self.configBtn.setIconSize(QSize(BIH, BIW))
         self.configBtn.clicked.connect(self.configBtnClicked)
 
+        self.filterBtn = QPushButton(QIcon(ICON_PATH+'filter.png'),'', self)
+        self.filterBtn.setToolTip('Filter files')  
+        self.filterBtn.setMinimumHeight(BH)
+        self.filterBtn.setFont(QFont(BF, BFP))
+        self.filterBtn.setIconSize(QSize(BIH-12, BIW))
+        self.filterBtn.clicked.connect(self.filterBtnClicked)
+
         self.loadBtn = QPushButton(QIcon(ICON_PATH+'src.png'),'', self)
-        self.loadBtn.setToolTip('Select recovered files')  
+        self.loadBtn.setToolTip('Select source')  
         self.loadBtn.setMinimumHeight(BH)
         self.loadBtn.setFont(QFont(BF, BFP))
         self.loadBtn.setIconSize(QSize(BIH, BIW))
@@ -341,8 +356,9 @@ class ImageSorter(QMainWindow):
         self.trashBtn.setIconSize(QSize(BIH, BIW))
         #self.trashBtn.clicked.connect(self.trashBtnClicked)
 
-        # add buttons to layout
+        # add feature buttons to layout
         self.btnLayout.addWidget(self.configBtn)
+        self.btnLayout.addWidget(self.filterBtn)
         self.btnLayout.addWidget(self.loadBtn)
         self.btnLayout.addWidget(self.destBtn)
         self.btnLayout.addWidget(self.prevBtn)
@@ -350,24 +366,26 @@ class ImageSorter(QMainWindow):
         self.btnLayout.addWidget(self.rotateBtn)
         self.btnLayout.addWidget(self.trashBtn)
         self.btnLayout.addWidget(self.quitBtn)
+        self.btnLayout.setAlignment(Qt.AlignBottom)
 
+        # create destination buttons
         self.destBtns = []
-        for n in range(48):
+        for n in range(DEFAULT_DEST_BUTTON_ROWS*DEFAULT_DEST_BUTTON_COLS):
             lbl = f'Dest{n}'
             btn = DragTargetButton(lbl, self)
             btn.setMinimumHeight(DBH)
             btn.setFont(QFont(DBF, DBFP))
-            #btn.setIcon(QIcon(ICON_PATH + 'folder.png'))
-            #btn.setIconSize(QSize(DBIH, DBIW))
             btn.setEnabled(False)
             self.destBtns.insert(n, btn)
-            #.addWidget(self, destBtns[n], row, col, rowSpan, columnSpan, Qt.Alignment alignment = 0)
-            row = n % 16
-            col = n // 16
+            row = n % DEFAULT_DEST_BUTTON_ROWS
+            col = n // DEFAULT_DEST_BUTTON_ROWS
             self.destLayout.addWidget(self.destBtns[n], row, col)
+        self.destLayout.setAlignment(Qt.AlignRight)
 
         self.hLayout.addWidget(self.imageView, 1)
-        self.hLayout.addLayout(self.destLayout)
+        self.hLayout.addLayout(self.destLayout, 0)
+        self.hLayout.setAlignment(Qt.AlignTop)
+
         self.mainLayout.addLayout(self.hLayout)
         self.mainLayout.addLayout(self.btnLayout)
 
@@ -383,6 +401,7 @@ class ImageSorter(QMainWindow):
         #self.timer.start(777) 
 
 def main():
+    ConfigCheck()
     app = QApplication(sys.argv)
     w = ImageSorter()
     w.show()

@@ -3,6 +3,7 @@
 from defaults import *
 from os import pathsep, path
 from PyQt5.QtWidgets import QPushButton, QMessageBox
+from PyQt5.QtGui import QDragEnterEvent, QDragLeaveEvent
 
 log = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class DragTargetButton(QPushButton):
         self.setAcceptDrops(True)
         self.dstFilesPath = ''
         self.clicked.connect(self.clickHandler)
+        self.setMaximumWidth(DEFAULT_DEST_BUTTON_WIDTH)
 
     def clickHandler(self):
         log.info(f"{self.text()} button clicked")
@@ -29,11 +31,18 @@ class DragTargetButton(QPushButton):
     def setDestFilePath(self, str):
         self.dstFilesPath = str
 
-    def dragEnterEvent(self, e):
-        if e.mimeData().hasFormat('text/plain'):
-            e.accept()
+    def dragEnterEvent(self, a0: QDragEnterEvent) -> None:
+        #return super().dragEnterEvent(a0)
+        if a0.mimeData().hasFormat('text/plain'):
+            self.setStyleSheet("background-color: lightgreen")
+            a0.accept()
         else:
-            e.ignore()
+            a0.ignore()
+
+    def dragLeaveEvent(self, a0: QDragLeaveEvent) -> None:
+        #return super().dragLeaveEvent(a0)
+        self.setStyleSheet("background-color: white")
+        a0.accept()
 
     def dropEvent(self, e):
         """

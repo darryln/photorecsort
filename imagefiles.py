@@ -20,8 +20,8 @@ class ImageFiles(QObject):
         self.files = []
         self.imageIndex = 0
         self.nImages = len(self.files)
-        log.info("pilinfo:")
-        PIL.features.pilinfo(out=None, supported_formats=False)
+        #log.info("pilinfo:")
+        #PIL.features.pilinfo(out=None, supported_formats=False)
         #PIL.features.get_supported()
 
     def isLoaded(self): 
@@ -41,6 +41,7 @@ class ImageFiles(QObject):
         log.info("scanning dest dirs under {self.dstFilesPath}")
         dirlist = next(os.walk(self.dstFilesPath))[1]
         log.info(f"found {len(dirlist)} dest dirs")
+        dirlist.sort()
         return dirlist
         
     def setDestPath(self, newPath):

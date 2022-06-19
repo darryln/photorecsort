@@ -3,9 +3,9 @@
 from defaults import *
 import os
 import PIL
-from PyQt5.QtCore import pyqtSlot, QRect, QSize
-from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QKeySequence
-from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction
+from PyQt5.QtCore import pyqtSlot, QSize, QPoint, QRect, QRectF
+from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QResizeEvent
+from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction, QMainWindow, QDesktopWidget
 from PyQt5.QtCore import Qt, QMimeData
 
 log = logging.getLogger(__name__) 
@@ -17,12 +17,17 @@ class ImageView(QLabel):
         super(QLabel, self).__init__(parent)
         self.parent = parent
         self.setAutoFillBackground(False)
+        self.setMinimumSize(1, 1)
+        self.setMaximumSize(QSize(DEFAULT_MAX_SCREEN_HEIGHT, DEFAULT_MAX_SCREEN_HEIGHT))
+
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor("LightGray"))
         self.setPalette(palette)
         self.setWindowTitle("ImageView")
 
         self.pixmap = QPixmap()
+        self.setAlignment(Qt.AlignTop)
+        self.setScaledContents(False)
         self.filepath = ''
         statusMsg = self.buildStatusMsg()
         self.parent.statusbar.showMessage(statusMsg)
@@ -65,38 +70,67 @@ class ImageView(QLabel):
             return
         if (event.pos() - self.drag_start_position).manhattanLength() < QApplication.startDragDistance():
             return
+
+        # create drag object & mime payload
         drag = QDrag(self)
         mimedata = QMimeData()
-        # get image file name
+        # set mime data to file path
         mimedata.setText(self.filepath)
         drag.setMimeData(mimedata)
-        pixmap = QPixmap(self.width(),self.height())
-        painter = QPainter(pixmap)
-        dragIconSize = QSize(self.width(), self.height())
-        dragIconSize.scale(QSize(128,128), Qt.AspectRatioMode.KeepAspectRatio)
-        dragIconRect = QRect(event.pos(),dragIconSize)
-        painter.setOpacity(0.6)
-        painter.drawPixmap(dragIconRect, self.grab())
+
+        # create transparent icon for dragging
+
+        # get pixmap size
+        srcSize = QSize(self.pixmap.width(), self.pixmap.height())
+        # scale it to icon size
+        iconSize = srcSize.scaled(
+            DEFAULT_DRAG_ICON_SIZE,DEFAULT_DRAG_ICON_SIZE,
+            Qt.AspectRatioMode.KeepAspectRatio)
+        # create a pixmap to paint on
+        iconPixmap = QPixmap(iconSize)
+        # must prefill transparent to avoid artifacts
+        # because the constructor does not zero mem
+        iconPixmap.fill(Qt.GlobalColor.transparent)
+        # QPainter.drawPixmap scales if you specify QRectF for src & dest
+        srcRectF = QRectF(0.0, 0.0, float(self.pixmap.width()), float(self.pixmap.height()));
+        iconRectF = QRectF(0.0, 0.0, float(iconPixmap.width()), float(iconPixmap.height()));
+        # begin painting
+        painter = QPainter(iconPixmap)
+        hints = painter.renderHints()
+        #hints |= painter.Antialiasing
+        hints |= painter.SmoothPixmapTransform 
+        painter.setRenderHints(hints, True)
+        painter.setOpacity(DEFAULT_DRAG_ICON_OPACITY)
+        painter.drawPixmap(iconRectF, self.pixmap, srcRectF)
+        # end painting
         painter.end()
-        drag.setPixmap(pixmap)
-        drag.setHotSpot(event.pos())
-        drag.exec_(Qt.CopyAction | Qt.MoveAction)
+        # set drag icon
+        drag.setPixmap(iconPixmap)
+        drag.setHotSpot(QPoint(0,0))
+        # start dragging it around
+        # TODO: test kbd shift/ctrl modifiers to select copy vs move?
+        drag.exec_(Qt.CopyAction | Qt.MoveAction) 
 
-
-    #def resizeEvent(self, event):
-        #log.info"(f"ImageView: resize event w {self.width()} h {self.height()}")
-        #if not self.pixmap.isNull():
-        #    self.pixmap.scaled(self.width(), self.height(), 
-        #        Qt.AspectRatioMode.KeepAspectRatio, 
-        #        Qt.TransformationMode.SmoothTransformation)
+    def resizeEvent(self, a0: QResizeEvent) -> None:
+        if not self.pixmap.isNull():
+            """
+            s = self.size()
+            s0 = QSize(a0.oldSize())
+            s1 = QSize(a0.size())
+            log.info(      f"resizeEvent   w { s.width()} x h { s.height()} \n" \
+            f"               event.oldSize w {s0.width()} x h {s0.height()} \n" \
+            f"               event.size    w {s1.width()} x h {s1.height()}")
+            """
+            pixmap = QPixmap(self.pixmap)
+            self.setPixmap(pixmap.scaled(a0.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
     @pyqtSlot(QPixmap, str)
     def updateImage(self, pixmap: QPixmap, filepath: str):
-        #log.info(f"ImageView: updateImage pixmap w {self.width()} h {self.height()}")
+        #log.info(f"ImageView: updateImage pixmap w {pixmap.width()} x h {pixmap.height()}")
         #log.info(f"ImageView: updateImage file: {filepath}")
-        self.pixmap  = pixmap.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        self.setPixmap(self.pixmap)
+        self.pixmap = pixmap
         self.filepath = filepath
+        self.setPixmap(self.pixmap.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         statusMsg = self.buildStatusMsg()
         self.parent.statusbar.showMessage(statusMsg)
 
