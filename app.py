@@ -4,7 +4,7 @@ from defaults import *
 from config import *
 import faulthandler; faulthandler.enable()
 import sys
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent, QSize
+from PyQt5.QtCore import Qt, QThread, QEvent, QSize, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
