@@ -7,8 +7,8 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 log = logging.getLogger(__name__)
 
-class ImageFiles(QObject):
-    # signal to send new image
+class Files(QObject):
+    # signal to send a preview of image or other file
     signal = pyqtSignal(QPixmap, str)
 
     def __init__(self, name=None):
@@ -18,8 +18,8 @@ class ImageFiles(QObject):
         self.srcFilesPath = DEFAULT_SRC_FILES_PATH
         self.dstFilesPath = DEFAULT_DST_FILES_PATH
         self.files = []
-        self.imageIndex = 0
-        self.nImages = len(self.files)
+        self.fileListIndex = 0
+        self.nFilesInList = len(self.files)
         #log.info("pilinfo:")
         #PIL.features.pilinfo(out=None, supported_formats=False)
         #PIL.features.get_supported()
@@ -89,48 +89,49 @@ class ImageFiles(QObject):
                     img.close()            
             except PIL.UnidentifiedImageError as e:
                 #log.error(f"Exception:", e)
+                #TODO: process other file type, generate thumbnail preview
                 pass
             except Exception as e:
                 #log.error(f"Exception:", e)
                 pass
-        self.nImages = len(self.files)
+        self.nFilesInList = len(self.files)
         self.loaded = True
         et = time.perf_counter()-start
-        log.info(f"found {self.nImages} files in {et:.3f} seconds")
+        log.info(f"found {self.nFilesInList} recovered files in {et:.3f} seconds")
 
     def getFilePath(self):
         if len(self.files) == 0: 
             return ''
-        return self.files[self.imageIndex]
+        return self.files[self.fileListIndex]
         
     def refresh(self):
         if len(self.files) == 0: 
             return
-        pixmap = QPixmap(self.files[self.imageIndex])
-        filepath = self.files[self.imageIndex]
-        # resend image to gui
+        pixmap = QPixmap(self.files[self.fileListIndex])
+        filepath = self.files[self.fileListIndex]
+        # send preview image to view
         self.signal.emit(pixmap, filepath)
 
     def next(self):
         if len(self.files) == 0: 
             return
-        self.imageIndex += 1
-        if self.imageIndex >= self.nImages:
-            self.imageIndex = 0
-        pixmap = QPixmap(self.files[self.imageIndex])
-        filepath = self.files[self.imageIndex]
-        # send new image to gui
+        self.fileListIndex += 1
+        if self.fileListIndex >= self.nFilesInList:
+            self.fileListIndex = 0
+        pixmap = QPixmap(self.files[self.fileListIndex])
+        filepath = self.files[self.fileListIndex]
+        # send new preview image to view
         self.signal.emit(pixmap, filepath)
 
     def prev(self):
         if len(self.files) == 0: 
             return
-        self.imageIndex -= 1
-        if self.imageIndex < 0:
-            self.imageIndex = self.nImages - 1
-        pixmap = QPixmap(self.files[self.imageIndex])
-        filepath = self.files[self.imageIndex]
-        # send new image to gui
+        self.fileListIndex -= 1
+        if self.fileListIndex < 0:
+            self.fileListIndex = self.nFilesInList - 1
+        pixmap = QPixmap(self.files[self.fileListIndex])
+        filepath = self.files[self.fileListIndex]
+        # send preview image to view
         self.signal.emit(pixmap, filepath)
 
     def dumpFiles(self):
@@ -142,31 +143,22 @@ class ImageFiles(QObject):
         log.info(f"    {extList}")
 
         log.info()
-        log.info('examining image files')
+        log.info('examining recovered files')
         for f in filesList:
             try:
                 with PIL.Image.open(f) as img:
                     if img.width < 1000 or img.height < 1000:
                         img.close()
                         continue
-                    # Getting the filename of image
                     log.info("File: ",img.filename)
-                    # Getting the format of image
                     log.info("Format: ",img.format, end=' ')
-                    # Getting the mode of image
                     log.info("Mode: ",img.mode, end=' ')
-                    # Getting the size of image
                     log.info("Size: ",img.size, end=' ')
-                    # Getting only the width of image
                     log.info("Width: ",img.width, end=' ')
-                    # Getting only the height of image
                     log.info("Height: ",img.height, end=' ')
-                    # Getting the color palette of image
                     log.info("Palette: ",img.palette, end=' ')
-                    # Getting the info about image
                     #log.info("Image Info : ",img.info, end=' ')
                     log.info()
-                    # Closing Image object
                     img.close()            
             except Exception as e:
                 log.error(f"Exception:", e)

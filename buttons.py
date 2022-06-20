@@ -78,7 +78,7 @@ class NextButton(AppButton):
 class RotateButton(AppButton):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setToolTip('Rotate current image')  
+        self.setToolTip('Rotate preview')  
         self.setIcon(QIcon(ICON_PATH+'rotate.png'))
 
 class QuitButton(AppButton):
@@ -89,7 +89,9 @@ class QuitButton(AppButton):
 
 class TrashButton(QPushButton):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__()
+        super(QPushButton, self).__init__(parent)        
+        self.parent = parent
         self.setMinimumHeight(BH)
         self.setFont(QFont(BF, BFP))
         self.setIconSize(QSize(BIH, BIW))
@@ -103,10 +105,12 @@ class TrashButton(QPushButton):
 
     def clickHandler(self):
         log.info(f"Trash button clicked")
+        self.parent.ignoreKeys(True)
         QMessageBox.information(self, 
             'Trash',
             'TODO: dialog to empty trash or select items to restore.', 
             QMessageBox.Ok)
+        self.parent.ignoreKeys(False)
 
     def dragEnterEvent(self, a0):
         if a0.mimeData().hasFormat('text/plain'):
@@ -149,7 +153,7 @@ class DestButton(QPushButton):
 
     def clickHandler(self):
         log.info(f"{self.text()} button clicked")
-        src = self.parent.getCurrentImagePath()
+        src = self.parent.getCurrentFilePath()
         # build dest file full path
         # dest path + our dir + src's base filename
         text = self.text()

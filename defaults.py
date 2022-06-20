@@ -15,9 +15,9 @@ DEFAULT_SRC_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a64684
 # "destination" for copy/move operations from "source" files. 
 DEFAULT_DST_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a646841d/pics')
 #print('DEFAULT_DST_FILES_PATH:',DEFAULT_DST_FILES_PATH)
-DEFAULT_MIN_IMAGE_PIXELS = 100*100
+DEFAULT_MIN_IMAGE_PIXELS = 100*100  #TODO: implement in filters
 
-DEFAULT_SUPPORTED_IMAGE_FORMATS = {
+DEFAULT_SUPPORTED_IMAGE_FORMATS = { #TODO: implement in filters
     #format     #mime type
     'BMP',      #image/bmp
     'BUFR',    
@@ -47,7 +47,7 @@ DEFAULT_SUPPORTED_IMAGE_FORMATS = {
     'XBM',      #image/xbm
 }
 
-DEFAULT_SUPPORTED_FILE_EXTENSIONS = [
+DEFAULT_SUPPORTED_FILE_EXTENSIONS = [  #TODO: implement in filters
     #ext        #description            #
 #Archive
     ( '7z',      '7-Zip archive file'               ),
@@ -604,13 +604,13 @@ DEFAULT_SUPPORTED_FILE_EXTENSIONS = [
     ( 'zpr',    'ZBrush'                            ),
 ]
 
-DEFAULT_MAIN_WINDOW_SIZE_FACTOR=0.5
+DEFAULT_MAIN_WINDOW_SIZE_FACTOR=0.66
 DEFAULT_DRAG_ICON_SIZE=128
 DEFAULT_DRAG_ICON_OPACITY=0.5
 DEFAULT_DEST_BUTTON_WIDTH=200
 DEFAULT_MAX_SCREEN_HEIGHT=2048
 DEFAULT_MAX_SCREEN_HEIGHT=4096
-DEFAULT_APP_NAME = "ImageSorter"
+DEFAULT_APP_NAME = "PhotoRec Sort"
 DEFAULT_ORG_NAME = "Bithead Technology"
 DEFAULT_ORG_DOMAIN = "bitheadtech.com"
 DEFAULT_DEST_BUTTON_ROWS=16

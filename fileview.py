@@ -10,7 +10,7 @@ from PyQt5.QtCore import Qt, QMimeData
 
 log = logging.getLogger(__name__) 
 
-class ImageView(QLabel):
+class FileView(QLabel):
 
     def __init__(self, parent):
         super().__init__()
@@ -23,15 +23,14 @@ class ImageView(QLabel):
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor("LightGray"))
         self.setPalette(palette)
-        self.setWindowTitle("ImageView")
+        self.setWindowTitle("View")
 
         self.pixmap = QPixmap()
         self.rotation = 0
         self.setAlignment(Qt.AlignTop)
         self.setScaledContents(False)
         self.filepath = ''
-        statusMsg = self.buildStatusMsg()
-        self.parent.statusbar.showMessage(statusMsg)
+        self.showStatusMessage(self.buildStatusMsg())
         self.createActions()
 
     def contextMenuEvent(self, event):
@@ -125,15 +124,17 @@ class ImageView(QLabel):
             self.showPixmap()
 
     @pyqtSlot(QPixmap, str)
-    def updateImage(self, pixmap: QPixmap, filepath: str):
-        #log.info(f"ImageView: updateImage pixmap w {pixmap.width()} x h {pixmap.height()}")
-        #log.info(f"ImageView: updateImage file: {filepath}")
+    def updatePreview(self, pixmap: QPixmap, filepath: str):
+        #log.info(f"updatePreview pixmap w {pixmap.width()} x h {pixmap.height()}")
+        #log.info(f"updatePreview file: {filepath}")
         self.pixmap = pixmap
         self.filepath = filepath
         self.resetRotation()
         self.showPixmap()
-        statusMsg = self.buildStatusMsg()
-        self.parent.statusbar.showMessage(statusMsg)
+        self.showStatusMessage(self.buildStatusMsg())
+
+    def showStatusMessage(self, msg : str):
+        self.parent.statusbar.showMessage(msg)
 
     def buildStatusMsg(self):
         s = str()

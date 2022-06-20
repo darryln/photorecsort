@@ -8,49 +8,49 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent, QSize
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
-from imagefiles import ImageFiles
-from imageview import ImageView
+from files import Files
+from fileview import FileView
 from buttons import *
 
 
-log = logging.getLogger("imagesorter")
+log = logging.getLogger("app")
 
-# async worker to load files
-class FileLoader(QThread):
+# async worker to scan files
+class SourceFilesScanThread(QThread):
 
     signal = pyqtSignal()
 
-    def __init__(self, ref: ImageFiles):
+    def __init__(self, ref: Files):
         QThread.__init__(self)
-        self.imageFiles = ref
+        self.files = ref
 
     def run(self):
-        log.info("FileLoader: entry")
+        log.info("SourceFilesScanThread: entry")
         # call load function
-        self.imageFiles.loadFiles()
+        self.files.loadFiles()
         # tell gui thread about new files
         self.signal.emit()
-        log.info("FileLoader: exit")
+        log.info("SourceFilesScanThread: exit")
 
 
-class ImageSorter(QMainWindow):
+class AppMainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
         self.appQuitFlag = False
         self.ignoreKeysFlag = False
-        self.imageFiles = ImageFiles()
-        self.srcPath = self.imageFiles.getSourcePath()
+        self.files = Files()
+        self.srcPath = self.files.getSourcePath()
         qApp.installEventFilter(self)
         self.statusbar = self.statusBar()
         self.initUI()
         log.info('starting source file loader thread')
         self.startLoaderThread(self.srcPath)
         log.info('scanning dest dir subdir names')
-        self.loadDestDirs(self.imageFiles.getDestPath())
+        self.loadDestDirs(self.files.getDestPath())
 
-    def getCurrentImagePath(self):
-        return self.imageFiles.getFilePath()
+    def getCurrentFilePath(self):
+        return self.files.getFilePath()
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress: #or event.type() == QEvent.KeyRelease:
@@ -59,7 +59,7 @@ class ImageSorter(QMainWindow):
             if not self.ignoreKeysFlag:
                 self.keyPressEvent(event)
                 return True
-        return super(ImageSorter, self).eventFilter(source, event)
+        return super(AppMainWindow, self).eventFilter(source, event)
 
     def ignoreKeys(self, flag: bool):
         self.ignoreKeysFlag = flag
@@ -93,33 +93,37 @@ class ImageSorter(QMainWindow):
 
     def configBtnClicked(self):
         #log.info('config button clicked')
+        self.ignoreKeys(True)
         QMessageBox.information(self, 
             'Config',
             'TODO: dialog to edit program options.', 
             QMessageBox.Ok)
+        self.ignoreKeys(False)
 
     def filterBtnClicked(self):
         log.info('filter button clicked')
+        self.ignoreKeys(True)
         QMessageBox.information(self, 
             'Filter',
             'TODO: dialog to edit file filter options.', 
             QMessageBox.Ok)
+        self.ignoreKeys(False)
 
     def nextBtnClicked(self):
         #log.info('next button clicked')
-        self.imageFiles.next()
+        self.files.next()
 
     @pyqtSlot()
     def filesLoaded(self):
         log.info('filesLoaded got signal')
-        # connect ImageView slot to ImageFiles signal
-        self.imageFiles.signal.connect(self.imageView.updateImage)
+        # connect View slot to Files signal
+        self.files.signal.connect(self.view.updatePreview)
         # enable buttons
         self.enableButtons()
         # restore normal mouse cursor
         arrow = Qt.CursorShape.ArrowCursor
         QApplication.setOverrideCursor(arrow)
-        self.imageFiles.refresh()
+        self.files.refresh()
 
     def disableButtons(self):
         self.nextBtn.setEnabled(False)
@@ -143,7 +147,7 @@ class ImageSorter(QMainWindow):
 
     def prevBtnClicked(self):
         #log.info('prev clicked')
-        self.imageFiles.prev()
+        self.files.prev()
 
     # called on Quit button clicked
     def quitBtnClicked(self):
@@ -155,7 +159,7 @@ class ImageSorter(QMainWindow):
         #log.info('load button clicked')
         # get path from modal file selector dialog 
         # starting in currently selected folder
-        currentPath = self.imageFiles.getSourcePath()
+        currentPath = self.files.getSourcePath()
         #log.info("currentPath:", currentPath)
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.FileMode())
@@ -167,20 +171,20 @@ class ImageSorter(QMainWindow):
         print(newPath)
         log.info(f"new src path: {newPath}")
 		# set source folder
-        self.imageFiles.setSourcePath(newPath)
-        newPath = self.imageFiles.getSourcePath()
+        self.files.setSourcePath(newPath)
+        newPath = self.files.getSourcePath()
         self.startLoaderThread(newPath)
 
     def startLoaderThread(self, srcFilesPath):
         # clear displayed frame
-        self.imageView.clear()
+        self.view.clear()
         # disable buttons while loading files
         self.disableButtons()
         # show hourglass mouse cursor while loading
         busy  = Qt.CursorShape.BusyCursor
         QApplication.setOverrideCursor(busy)
         # create and start worker thread
-        self.loaderThread = FileLoader(self.imageFiles)
+        self.loaderThread = SourceFilesScanThread(self.files)
         # connect signal to slot
         self.loaderThread.signal.connect(self.filesLoaded)
         # run it
@@ -190,7 +194,7 @@ class ImageSorter(QMainWindow):
         #log.info('dest button clicked')
         # get path from modal file selector dialog 
         # starting in currently selected folder
-        currentPath = self.imageFiles.getDestPath()
+        currentPath = self.files.getDestPath()
         #log.info("currentPath:", currentPath)
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.FileMode())
@@ -204,10 +208,10 @@ class ImageSorter(QMainWindow):
     
     def loadDestDirs(self, newPath):
 		# set dest dir
-        self.imageFiles.setDestPath(newPath)
-        destPath = self.imageFiles.getDestPath()
+        self.files.setDestPath(newPath)
+        destPath = self.files.getDestPath()
         # get dirs below dest dir
-        self.destDirs = self.imageFiles.getDestDirs()
+        self.destDirs = self.files.getDestDirs()
         nDirs = len(self.destDirs)
         nBtns = len(self.destBtns)
         log.info(f"{nDirs} dest dirs")
@@ -224,7 +228,7 @@ class ImageSorter(QMainWindow):
                 btn.setDestFilePath('')
 
     def rotateBtnClicked(self):
-        self.imageView.rotate()
+        self.view.rotate()
 
     # called on main window "X" closer clicked
     def closeEvent(self, event):
@@ -243,7 +247,7 @@ class ImageSorter(QMainWindow):
         scrn.setHeight(int(scrn.height()*DEFAULT_MAIN_WINDOW_SIZE_FACTOR))
         scrn.setWidth(int(scrn.width()*DEFAULT_MAIN_WINDOW_SIZE_FACTOR))
         self.resize(scrn.width(),scrn.height())
-        self.setWindowTitle('Image Sorter')
+        self.setWindowTitle(DEFAULT_APP_NAME)
         frame = self.frameGeometry()
         center = QDesktopWidget().availableGeometry().center()
         frame.moveCenter(center)
@@ -256,9 +260,9 @@ class ImageSorter(QMainWindow):
         self.destLayout = QGridLayout()
         self.btnLayout = QHBoxLayout()
 
-        # create image sink
-        self.imageView = ImageView(self)
-        self.imageView.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        # create view
+        self.view = FileView(self)
+        self.view.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
         # create feature buttons
         self.configBtn = ConfigButton(self)
@@ -311,7 +315,7 @@ class ImageSorter(QMainWindow):
             self.destLayout.addWidget(self.destBtns[n], row, col)
         self.destLayout.setAlignment(Qt.AlignRight)
 
-        self.hLayout.addWidget(self.imageView, 1)
+        self.hLayout.addWidget(self.view, 1)
         self.hLayout.addLayout(self.destLayout, 0)
         self.hLayout.setAlignment(Qt.AlignTop)
 
@@ -326,7 +330,7 @@ class ImageSorter(QMainWindow):
 def main():
     ConfigCheck()
     app = QApplication(sys.argv)
-    w = ImageSorter()
+    w = AppMainWindow()
     w.show()
     result = app.exec_()
     log.info("app exited")
