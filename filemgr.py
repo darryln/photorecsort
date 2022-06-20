@@ -7,7 +7,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 log = logging.getLogger(__name__)
 
-class Files(QObject):
+class FileMgr(QObject):
     # signal to send a preview of image or other file
     signal = pyqtSignal(QPixmap, str)
 
@@ -17,9 +17,9 @@ class Files(QObject):
         self.initComplete = False
         self.srcFilesPath = DEFAULT_SRC_FILES_PATH
         self.dstFilesPath = DEFAULT_DST_FILES_PATH
-        self.files = []
+        self.fileList = []
         self.fileListIndex = 0
-        self.nFilesInList = len(self.files)
+        self.nFilesInList = len(self.fileList)
         #log.info("pilinfo:")
         #PIL.features.pilinfo(out=None, supported_formats=False)
         #PIL.features.get_supported()
@@ -70,7 +70,7 @@ class Files(QObject):
         #breakpoint()
         start = time.perf_counter()
         log.info("scanning source files")
-        self.files = []
+        self.fileList = []
         filesList = list(self.scanFiles(self.srcFilesPath))
         for f in filesList:
             #if not os.path.splitext(f)[1][1:] in DEFAULT_SUPPORTED_FILE_EXTENSIONS:
@@ -85,7 +85,7 @@ class Files(QObject):
                     if not img.format in DEFAULT_SUPPORTED_IMAGE_FORMATS:
                         img.close()
                         continue
-                    self.files.append(f)
+                    self.fileList.append(f)
                     img.close()            
             except PIL.UnidentifiedImageError as e:
                 #log.error(f"Exception:", e)
@@ -94,43 +94,43 @@ class Files(QObject):
             except Exception as e:
                 #log.error(f"Exception:", e)
                 pass
-        self.nFilesInList = len(self.files)
+        self.nFilesInList = len(self.fileList)
         self.loaded = True
         et = time.perf_counter()-start
         log.info(f"found {self.nFilesInList} recovered files in {et:.3f} seconds")
 
     def getFilePath(self):
-        if len(self.files) == 0: 
+        if len(self.fileList) == 0: 
             return ''
-        return self.files[self.fileListIndex]
+        return self.fileList[self.fileListIndex]
         
     def refresh(self):
-        if len(self.files) == 0: 
+        if len(self.fileList) == 0: 
             return
-        pixmap = QPixmap(self.files[self.fileListIndex])
-        filepath = self.files[self.fileListIndex]
+        pixmap = QPixmap(self.fileList[self.fileListIndex])
+        filepath = self.fileList[self.fileListIndex]
         # send preview image to view
         self.signal.emit(pixmap, filepath)
 
     def next(self):
-        if len(self.files) == 0: 
+        if len(self.fileList) == 0: 
             return
         self.fileListIndex += 1
         if self.fileListIndex >= self.nFilesInList:
             self.fileListIndex = 0
-        pixmap = QPixmap(self.files[self.fileListIndex])
-        filepath = self.files[self.fileListIndex]
+        pixmap = QPixmap(self.fileList[self.fileListIndex])
+        filepath = self.fileList[self.fileListIndex]
         # send new preview image to view
         self.signal.emit(pixmap, filepath)
 
     def prev(self):
-        if len(self.files) == 0: 
+        if len(self.fileList) == 0: 
             return
         self.fileListIndex -= 1
         if self.fileListIndex < 0:
             self.fileListIndex = self.nFilesInList - 1
-        pixmap = QPixmap(self.files[self.fileListIndex])
-        filepath = self.files[self.fileListIndex]
+        pixmap = QPixmap(self.fileList[self.fileListIndex])
+        filepath = self.fileList[self.fileListIndex]
         # send preview image to view
         self.signal.emit(pixmap, filepath)
 

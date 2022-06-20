@@ -1,17 +1,16 @@
 #!/usr/bin/python
 
-from defaults import *
-from config import *
 import faulthandler; faulthandler.enable()
 import sys
 from PyQt5.QtCore import Qt, QThread, QEvent, QSize, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
-from files import Files
+from filemgr import FileMgr
 from fileview import FileView
 from buttons import *
-
+from config import *
+from defaults import *
 
 log = logging.getLogger("app")
 
@@ -20,14 +19,14 @@ class SourceFilesScanThread(QThread):
 
     signal = pyqtSignal()
 
-    def __init__(self, ref: Files):
+    def __init__(self, ref: FileMgr):
         QThread.__init__(self)
-        self.files = ref
+        self.fileMgr = ref
 
     def run(self):
         log.info("SourceFilesScanThread: entry")
         # call load function
-        self.files.loadFiles()
+        self.fileMgr.loadFiles()
         # tell gui thread about new files
         self.signal.emit()
         log.info("SourceFilesScanThread: exit")
@@ -39,18 +38,18 @@ class AppMainWindow(QMainWindow):
         super().__init__()
         self.appQuitFlag = False
         self.ignoreKeysFlag = False
-        self.files = Files()
-        self.srcPath = self.files.getSourcePath()
+        self.fileMgr = FileMgr()
+        self.srcPath = self.fileMgr.getSourcePath()
         qApp.installEventFilter(self)
         self.statusbar = self.statusBar()
         self.initUI()
         log.info('starting source file loader thread')
         self.startLoaderThread(self.srcPath)
         log.info('scanning dest dir subdir names')
-        self.loadDestDirs(self.files.getDestPath())
+        self.loadDestDirs(self.fileMgr.getDestPath())
 
     def getCurrentFilePath(self):
-        return self.files.getFilePath()
+        return self.fileMgr.getFilePath()
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress: #or event.type() == QEvent.KeyRelease:
@@ -111,19 +110,19 @@ class AppMainWindow(QMainWindow):
 
     def nextBtnClicked(self):
         #log.info('next button clicked')
-        self.files.next()
+        self.fileMgr.next()
 
     @pyqtSlot()
     def filesLoaded(self):
         log.info('filesLoaded got signal')
         # connect View slot to Files signal
-        self.files.signal.connect(self.view.updatePreview)
+        self.fileMgr.signal.connect(self.view.updatePreview)
         # enable buttons
         self.enableButtons()
         # restore normal mouse cursor
         arrow = Qt.CursorShape.ArrowCursor
         QApplication.setOverrideCursor(arrow)
-        self.files.refresh()
+        self.fileMgr.refresh()
 
     def disableButtons(self):
         self.nextBtn.setEnabled(False)
@@ -147,7 +146,7 @@ class AppMainWindow(QMainWindow):
 
     def prevBtnClicked(self):
         #log.info('prev clicked')
-        self.files.prev()
+        self.fileMgr.prev()
 
     # called on Quit button clicked
     def quitBtnClicked(self):
@@ -159,7 +158,7 @@ class AppMainWindow(QMainWindow):
         #log.info('load button clicked')
         # get path from modal file selector dialog 
         # starting in currently selected folder
-        currentPath = self.files.getSourcePath()
+        currentPath = self.fileMgr.getSourcePath()
         #log.info("currentPath:", currentPath)
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.FileMode())
@@ -171,8 +170,8 @@ class AppMainWindow(QMainWindow):
         print(newPath)
         log.info(f"new src path: {newPath}")
 		# set source folder
-        self.files.setSourcePath(newPath)
-        newPath = self.files.getSourcePath()
+        self.fileMgr.setSourcePath(newPath)
+        newPath = self.fileMgr.getSourcePath()
         self.startLoaderThread(newPath)
 
     def startLoaderThread(self, srcFilesPath):
@@ -184,7 +183,7 @@ class AppMainWindow(QMainWindow):
         busy  = Qt.CursorShape.BusyCursor
         QApplication.setOverrideCursor(busy)
         # create and start worker thread
-        self.loaderThread = SourceFilesScanThread(self.files)
+        self.loaderThread = SourceFilesScanThread(self.fileMgr)
         # connect signal to slot
         self.loaderThread.signal.connect(self.filesLoaded)
         # run it
@@ -194,7 +193,7 @@ class AppMainWindow(QMainWindow):
         #log.info('dest button clicked')
         # get path from modal file selector dialog 
         # starting in currently selected folder
-        currentPath = self.files.getDestPath()
+        currentPath = self.fileMgr.getDestPath()
         #log.info("currentPath:", currentPath)
         dlg = QFileDialog()
         dlg.setFileMode(QFileDialog.FileMode())
@@ -208,10 +207,10 @@ class AppMainWindow(QMainWindow):
     
     def loadDestDirs(self, newPath):
 		# set dest dir
-        self.files.setDestPath(newPath)
-        destPath = self.files.getDestPath()
+        self.fileMgr.setDestPath(newPath)
+        destPath = self.fileMgr.getDestPath()
         # get dirs below dest dir
-        self.destDirs = self.files.getDestDirs()
+        self.destDirs = self.fileMgr.getDestDirs()
         nDirs = len(self.destDirs)
         nBtns = len(self.destBtns)
         log.info(f"{nDirs} dest dirs")
