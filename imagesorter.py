@@ -10,8 +10,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 from imagefiles import ImageFiles
 from imageview import ImageView
-from dragtargetbutton import DragTargetButton
-from trashbutton import TrashButton
+from buttons import *
+
 
 log = logging.getLogger("imagesorter")
 
@@ -44,7 +44,7 @@ class ImageSorter(QMainWindow):
         qApp.installEventFilter(self)
         self.statusbar = self.statusBar()
         self.initUI()
-        log.info('scanning source path for files')
+        log.info('starting source file loader thread')
         self.startLoaderThread(self.srcPath)
         log.info('scanning dest dir subdir names')
         self.loadDestDirs(self.imageFiles.getDestPath())
@@ -80,25 +80,16 @@ class ImageSorter(QMainWindow):
             self.quitBtnClicked()
         elif k == Qt.Key.Key_Q:
             self.quitBtnClicked()
+        elif k == Qt.Key.Key_Delete:
+            self.trashBtn.clickHandler()
         elif k == Qt.Key.Key_Right:
             self.nextBtnClicked()
         elif k == Qt.Key.Key_Left:
             self.prevBtnClicked()
         elif k == Qt.Key.Key_L:
-            self.loadBtnClicked()
+            self.setSourceBtnClicked()
         elif k == Qt.Key.Key_D:
-            self.destBtnClicked()
-
-    """
-    def resizeEvent(self, event):
-        log.info(f"main window: resize event w {self.width()} h {self.height()}")
-        self.resize(self.width(), self.height())
-    """
-
-    """
-    def showStats(self) :
-        self.stats.setText(self.imageView.getStats())
-    """
+            self.setDestBtnClicked()
 
     def configBtnClicked(self):
         #log.info('config button clicked')
@@ -108,20 +99,11 @@ class ImageSorter(QMainWindow):
             QMessageBox.Ok)
 
     def filterBtnClicked(self):
-        #log.info('filter button clicked')
+        log.info('filter button clicked')
         QMessageBox.information(self, 
             'Filter',
             'TODO: dialog to edit file filter options.', 
             QMessageBox.Ok)
-
-    """
-    def trashBtnClicked(self):
-        #log.info('trash button clicked')
-        QMessageBox.information(self, 
-            'Trash',
-            'TODO: implement drop handling in button.', 
-            QMessageBox.Ok)
-    """
 
     def nextBtnClicked(self):
         #log.info('next button clicked')
@@ -145,7 +127,9 @@ class ImageSorter(QMainWindow):
         self.quitBtn.setEnabled(False)
         self.configBtn.setEnabled(False)
         self.filterBtn.setEnabled(False)
-        self.loadBtn.setEnabled(False)
+        self.setSourceBtn.setEnabled(False)
+        self.setDestBtn.setEnabled(False)
+        self.trashBtn.setEnabled(False)
 
     def enableButtons(self):
         self.nextBtn.setEnabled(True)
@@ -153,7 +137,9 @@ class ImageSorter(QMainWindow):
         self.quitBtn.setEnabled(True)
         self.configBtn.setEnabled(True)
         self.filterBtn.setEnabled(True)
-        self.loadBtn.setEnabled(True)
+        self.setSourceBtn.setEnabled(True)
+        self.setDestBtn.setEnabled(True)
+        self.trashBtn.setEnabled(True)
 
     def prevBtnClicked(self):
         #log.info('prev clicked')
@@ -165,7 +151,7 @@ class ImageSorter(QMainWindow):
         self.appQuitFlag = True
         self.close()
 
-    def loadBtnClicked(self):
+    def setSourceBtnClicked(self):
         #log.info('load button clicked')
         # get path from modal file selector dialog 
         # starting in currently selected folder
@@ -200,7 +186,7 @@ class ImageSorter(QMainWindow):
         # run it
         self.loaderThread.start()
 
-    def destBtnClicked(self):
+    def setDestBtnClicked(self):
         #log.info('dest button clicked')
         # get path from modal file selector dialog 
         # starting in currently selected folder
@@ -238,7 +224,7 @@ class ImageSorter(QMainWindow):
                 btn.setDestFilePath('')
 
     def rotateBtnClicked(self):
-        pass
+        self.imageView.rotate()
 
     # called on main window "X" closer clicked
     def closeEvent(self, event):
@@ -274,108 +260,51 @@ class ImageSorter(QMainWindow):
         self.imageView = ImageView(self)
         self.imageView.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
-        # path to icon files 
-        # TODO: compile to resource
-        ICON_PATH = 'res/'
-        
-        # nav button params
-        BH = 64 # height
-        BIH = 64 # icon height
-        BIW = 64 # icon width
-        BF = 'Arial' # font
-        BFP = 18 # font point size
-        
-        # dest btn params
-        DBH = 32 # height
-        #DBIH = 32 # icon height
-        #DBIW = 32 # icon width
-        DBF = 'Arial Narrow' # font
-        DBFP = 18 # font point size
-        
         # create feature buttons
-        self.configBtn = QPushButton(QIcon(ICON_PATH+'config.png'),'', self)
-        self.configBtn.setToolTip('Configure settings')  
-        self.configBtn.setMinimumHeight(BH)
-        self.configBtn.setFont(QFont(BF, BFP))
-        self.configBtn.setIconSize(QSize(BIH, BIW))
+        self.configBtn = ConfigButton(self)
         self.configBtn.clicked.connect(self.configBtnClicked)
 
-        self.filterBtn = QPushButton(QIcon(ICON_PATH+'filter.png'),'', self)
-        self.filterBtn.setToolTip('Filter files')  
-        self.filterBtn.setMinimumHeight(BH)
-        self.filterBtn.setFont(QFont(BF, BFP))
-        self.filterBtn.setIconSize(QSize(BIH-12, BIW))
+        self.filterBtn = FilterButton(self)
         self.filterBtn.clicked.connect(self.filterBtnClicked)
 
-        self.loadBtn = QPushButton(QIcon(ICON_PATH+'src.png'),'', self)
-        self.loadBtn.setToolTip('Select source')  
-        self.loadBtn.setMinimumHeight(BH)
-        self.loadBtn.setFont(QFont(BF, BFP))
-        self.loadBtn.setIconSize(QSize(BIH, BIW))
-        self.loadBtn.clicked.connect(self.loadBtnClicked)
+        self.setSourceBtn = SetSourceButton(self)
+        self.setSourceBtn.clicked.connect(self.setSourceBtnClicked)
 
-        self.destBtn = QPushButton(QIcon(ICON_PATH+'dest.png'),'', self)
-        self.destBtn.setToolTip('Select destination')  
-        self.destBtn.setMinimumHeight(BH)
-        self.destBtn.setFont(QFont(BF, BFP))
-        self.destBtn.setIconSize(QSize(BIH, BIW))
-        self.destBtn.clicked.connect(self.destBtnClicked)
+        self.setDestBtn = SetDestButton(self)
+        self.setDestBtn.clicked.connect(self.setDestBtnClicked)
 
-        self.rotateBtn = QPushButton(QIcon(ICON_PATH+'rotate.png'),'', self)
-        self.rotateBtn.setToolTip('Rotate current image')  
-        self.rotateBtn.setMinimumHeight(BH)
-        self.rotateBtn.setFont(QFont(BF, BFP))
-        self.rotateBtn.setIconSize(QSize(BIH, BIW))
+        self.rotateBtn = RotateButton(self)
         self.rotateBtn.clicked.connect(self.rotateBtnClicked)
 
-        self.quitBtn = QPushButton(QIcon(ICON_PATH+'quit.png'),'', self)
-        self.quitBtn.setToolTip('Quit')  
-        self.quitBtn.setMinimumHeight(BH)
-        self.quitBtn.setFont(QFont(BF, BFP))
-        self.quitBtn.setIconSize(QSize(BIH, BIW))
+        self.quitBtn = QuitButton(self)
         self.quitBtn.clicked.connect(self.quitBtnClicked)
 
-        self.nextBtn = QPushButton(QIcon(ICON_PATH+'next.png'),'', self)
-        self.nextBtn.setToolTip('Go to next item')  
-        self.nextBtn.setMinimumHeight(BH)
-        self.nextBtn.setFont(QFont(BF, BFP))
-        self.nextBtn.setIconSize(QSize(BIH, BIW))
+        self.nextBtn = NextButton(self)
         self.nextBtn.clicked.connect(self.nextBtnClicked)
 
-        self.prevBtn = QPushButton(QIcon(ICON_PATH+'prev.png'),'', self)
-        self.prevBtn.setToolTip('Go to previous item')  
-        self.prevBtn.setMinimumHeight(BH)
-        self.prevBtn.setFont(QFont(BF, BFP))
-        self.prevBtn.setIconSize(QSize(BIH, BIW))
+        self.prevBtn = PrevButton(self)
         self.prevBtn.clicked.connect(self.prevBtnClicked)
 
-        self.trashBtn = TrashButton(QIcon(ICON_PATH+'trash.svg'),'', self)
-        self.trashBtn.setToolTip('Trash Can')  
-        self.trashBtn.setMinimumHeight(BH)
-        self.trashBtn.setFont(QFont(BF, BFP))
-        self.trashBtn.setIconSize(QSize(BIH, BIW))
-        #self.trashBtn.clicked.connect(self.trashBtnClicked)
+        self.trashBtn = TrashButton(self)
+        # TrashButton class handles click & drop
 
         # add feature buttons to layout
         self.btnLayout.addWidget(self.configBtn)
         self.btnLayout.addWidget(self.filterBtn)
-        self.btnLayout.addWidget(self.loadBtn)
-        self.btnLayout.addWidget(self.destBtn)
+        self.btnLayout.addWidget(self.setSourceBtn)
+        self.btnLayout.addWidget(self.setDestBtn)
         self.btnLayout.addWidget(self.prevBtn)
         self.btnLayout.addWidget(self.nextBtn)
         self.btnLayout.addWidget(self.rotateBtn)
         self.btnLayout.addWidget(self.trashBtn)
         self.btnLayout.addWidget(self.quitBtn)
         self.btnLayout.setAlignment(Qt.AlignBottom)
+        self.btnLayout.setStretch(0,0);
 
         # create destination buttons
         self.destBtns = []
         for n in range(DEFAULT_DEST_BUTTON_ROWS*DEFAULT_DEST_BUTTON_COLS):
-            lbl = f'Dest{n}'
-            btn = DragTargetButton(lbl, self)
-            btn.setMinimumHeight(DBH)
-            btn.setFont(QFont(DBF, DBFP))
-            btn.setEnabled(False)
+            btn = DestButton(self)
             self.destBtns.insert(n, btn)
             row = n % DEFAULT_DEST_BUTTON_ROWS
             col = n // DEFAULT_DEST_BUTTON_ROWS
@@ -393,12 +322,6 @@ class ImageSorter(QMainWindow):
         cw = QWidget()
         cw.setLayout(self.mainLayout)
         self.setCentralWidget(cw)
-
-        # animate stats
-        #self.timer = QTimer()
-        #self.timer.start()
-        #self.timer.timeout.connect(self.showStats)
-        #self.timer.start(777) 
 
 def main():
     ConfigCheck()

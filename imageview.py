@@ -4,7 +4,7 @@ from defaults import *
 import os
 import PIL
 from PyQt5.QtCore import pyqtSlot, QSize, QPoint, QRect, QRectF
-from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QResizeEvent
+from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QResizeEvent, QTransform
 from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction, QMainWindow, QDesktopWidget
 from PyQt5.QtCore import Qt, QMimeData
 
@@ -26,6 +26,7 @@ class ImageView(QLabel):
         self.setWindowTitle("ImageView")
 
         self.pixmap = QPixmap()
+        self.rotation = 0
         self.setAlignment(Qt.AlignTop)
         self.setScaledContents(False)
         self.filepath = ''
@@ -121,8 +122,7 @@ class ImageView(QLabel):
             f"               event.oldSize w {s0.width()} x h {s0.height()} \n" \
             f"               event.size    w {s1.width()} x h {s1.height()}")
             """
-            pixmap = QPixmap(self.pixmap)
-            self.setPixmap(pixmap.scaled(a0.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.showPixmap()
 
     @pyqtSlot(QPixmap, str)
     def updateImage(self, pixmap: QPixmap, filepath: str):
@@ -130,7 +130,8 @@ class ImageView(QLabel):
         #log.info(f"ImageView: updateImage file: {filepath}")
         self.pixmap = pixmap
         self.filepath = filepath
-        self.setPixmap(self.pixmap.scaled(self.width(), self.height(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.resetRotation()
+        self.showPixmap()
         statusMsg = self.buildStatusMsg()
         self.parent.statusbar.showMessage(statusMsg)
 
@@ -177,3 +178,22 @@ class ImageView(QLabel):
         tags = [ "", "K", "M", "G", "T" ]
         (n,i) = self.humanize(nBytes,tags,1)
         return str(n) + tags[i]
+
+    def rotate(self):
+        self.rotation += 90
+        if self.rotation > 270: 
+            self.rotation = 0
+        self.showPixmap()
+
+    def resetRotation(self):
+        self.rotation = 0
+
+    def showPixmap(self):
+        pixmap = QPixmap(self.pixmap)
+        if self.rotation > 0:
+            transform = QTransform().rotate(self.rotation)
+            pixmap = pixmap.transformed(transform, 
+                Qt.TransformationMode.SmoothTransformation)
+        self.setPixmap(pixmap.scaled(self.width(), self.height(), 
+            Qt.AspectRatioMode.KeepAspectRatio, 
+            Qt.TransformationMode.SmoothTransformation))

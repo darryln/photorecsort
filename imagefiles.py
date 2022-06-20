@@ -38,7 +38,7 @@ class ImageFiles(QObject):
         return self.dstFilesPath
         
     def getDestDirs(self):
-        log.info("scanning dest dirs under {self.dstFilesPath}")
+        log.info(f"scanning dest dirs under {self.dstFilesPath}")
         dirlist = next(os.walk(self.dstFilesPath))[1]
         log.info(f"found {len(dirlist)} dest dirs")
         dirlist.sort()
