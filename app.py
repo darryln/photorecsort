@@ -10,7 +10,8 @@ from filemgr import FileMgr
 from fileview import FileView
 from buttons import *
 from config import *
-from defaults import *
+from trashbutton import TrashButton
+from destbutton import DestButton
 
 log = logging.getLogger("app")
 
@@ -110,42 +111,59 @@ class AppMainWindow(QMainWindow):
 
     def nextBtnClicked(self):
         #log.info('next button clicked')
+        if self.fileMgr.getNumFilesInList() == 0:
+            self.statusbar.showMessage("No files.")
+            self.fileView.clear()
         self.fileMgr.next()
 
     @pyqtSlot()
     def filesLoaded(self):
         log.info('filesLoaded got signal')
         # connect View slot to Files signal
-        self.fileMgr.signal.connect(self.view.updatePreview)
+        self.fileMgr.signal.connect(self.fileView.updatePreview)
         # enable buttons
         self.enableButtons()
         # restore normal mouse cursor
         arrow = Qt.CursorShape.ArrowCursor
         QApplication.setOverrideCursor(arrow)
         self.fileMgr.refresh()
+        if self.fileMgr.getNumFilesInList() == 0:
+            self.statusbar.showMessage("No files.")
+            self.fileView.clear()
 
     def disableButtons(self):
-        self.nextBtn.setEnabled(False)
-        self.prevBtn.setEnabled(False)
-        self.quitBtn.setEnabled(False)
         self.configBtn.setEnabled(False)
         self.filterBtn.setEnabled(False)
         self.setSourceBtn.setEnabled(False)
         self.setDestBtn.setEnabled(False)
+        self.prevBtn.setEnabled(False)
+        self.nextBtn.setEnabled(False)
+        self.rotateBtn.setEnabled(False)
         self.trashBtn.setEnabled(False)
+        self.quitBtn.setEnabled(False)
 
     def enableButtons(self):
-        self.nextBtn.setEnabled(True)
-        self.prevBtn.setEnabled(True)
-        self.quitBtn.setEnabled(True)
         self.configBtn.setEnabled(True)
         self.filterBtn.setEnabled(True)
         self.setSourceBtn.setEnabled(True)
         self.setDestBtn.setEnabled(True)
+        self.prevBtn.setEnabled(True)
+        self.nextBtn.setEnabled(True)
+        self.rotateBtn.setEnabled(True)
         self.trashBtn.setEnabled(True)
+        self.quitBtn.setEnabled(True)
+
+    def removeFileFromList(self, filepath):
+        self.fileMgr.removeFileFromList(filepath)
+        if self.fileMgr.getNumFilesInList() == 0:
+            self.statusbar.showMessage("No files.")
+            self.fileView.clear()
 
     def prevBtnClicked(self):
         #log.info('prev clicked')
+        if self.fileMgr.getNumFilesInList() == 0:
+            self.statusbar.showMessage("No files.")
+            self.fileView.clear()
         self.fileMgr.prev()
 
     # called on Quit button clicked
@@ -176,7 +194,7 @@ class AppMainWindow(QMainWindow):
 
     def startLoaderThread(self, srcFilesPath):
         # clear displayed frame
-        self.view.clear()
+        self.fileView.clear()
         # disable buttons while loading files
         self.disableButtons()
         # show hourglass mouse cursor while loading
@@ -221,13 +239,27 @@ class AppMainWindow(QMainWindow):
                 btn.setEnabled(True)
                 btn.setText(self.destDirs[n])
                 btn.setDestFilePath(destPath)
+                btn.enableClick(True)
+                btn.enableDrop(True)
             else:
-                btn.setEnabled(False)
+                btn.setEnabled(True)
                 btn.setText('')
-                btn.setDestFilePath('')
+                btn.setDestFilePath(destPath)
+                btn.enableClick(False)
+                btn.enableDrop(False)
+
+    def showStatusMessage(self, msg : str):
+        n = self.fileMgr.getNumFilesInList()
+        i = 1 + self.fileMgr.getCurrentFileIndex()
+        self.statusbar.showMessage(f"File {i} of {n}: {msg}")
 
     def rotateBtnClicked(self):
-        self.view.rotate()
+        if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+            # rotate file (destructive)
+            self.fileMgr.rotateFile()
+        else:
+            # rotate preview (non-destructive)
+            self.fileView.rotate()
 
     # called on main window "X" closer clicked
     def closeEvent(self, event):
@@ -260,8 +292,8 @@ class AppMainWindow(QMainWindow):
         self.btnLayout = QHBoxLayout()
 
         # create view
-        self.view = FileView(self)
-        self.view.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.fileView = FileView(self)
+        self.fileView.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
         # create feature buttons
         self.configBtn = ConfigButton(self)
@@ -276,20 +308,21 @@ class AppMainWindow(QMainWindow):
         self.setDestBtn = SetDestButton(self)
         self.setDestBtn.clicked.connect(self.setDestBtnClicked)
 
-        self.rotateBtn = RotateButton(self)
-        self.rotateBtn.clicked.connect(self.rotateBtnClicked)
-
-        self.quitBtn = QuitButton(self)
-        self.quitBtn.clicked.connect(self.quitBtnClicked)
-
         self.nextBtn = NextButton(self)
         self.nextBtn.clicked.connect(self.nextBtnClicked)
 
         self.prevBtn = PrevButton(self)
         self.prevBtn.clicked.connect(self.prevBtnClicked)
 
+        self.rotateBtn = RotateButton(self)
+        self.rotateBtn.clicked.connect(self.rotateBtnClicked)
+
         self.trashBtn = TrashButton(self)
         # TrashButton class handles click & drop
+
+        self.quitBtn = QuitButton(self)
+        self.quitBtn.clicked.connect(self.quitBtnClicked)
+
 
         # add feature buttons to layout
         self.btnLayout.addWidget(self.configBtn)
@@ -302,7 +335,7 @@ class AppMainWindow(QMainWindow):
         self.btnLayout.addWidget(self.trashBtn)
         self.btnLayout.addWidget(self.quitBtn)
         self.btnLayout.setAlignment(Qt.AlignBottom)
-        self.btnLayout.setStretch(0,0);
+        self.btnLayout.setStretch(0,0)
 
         # create destination buttons
         self.destBtns = []
@@ -314,8 +347,10 @@ class AppMainWindow(QMainWindow):
             self.destLayout.addWidget(self.destBtns[n], row, col)
         self.destLayout.setAlignment(Qt.AlignRight)
 
-        self.hLayout.addWidget(self.view, 1)
-        self.hLayout.addLayout(self.destLayout, 0)
+        self.hLayout.addWidget(self.fileView, 1)
+        self.fileView.setAlignment(Qt.AlignLeft)
+        self.fileView.setContentsMargins(0, 0, 0, 0)
+        self.hLayout.addLayout(self.destLayout)
         self.hLayout.setAlignment(Qt.AlignTop)
 
         self.mainLayout.addLayout(self.hLayout)

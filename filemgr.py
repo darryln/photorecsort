@@ -1,5 +1,6 @@
 from defaults import *
 import PIL
+import PIL.Image
 import PIL.features
 import os, time
 from PyQt5.QtGui import QPixmap
@@ -27,6 +28,12 @@ class FileMgr(QObject):
     def isLoaded(self): 
         return self.loaded
 
+    def getNumFilesInList(self) -> int:
+        return len(self.fileList)
+
+    def getCurrentFileIndex(self) -> int:
+        return self.fileListIndex
+
     def getSourcePath(self):
         return self.srcFilesPath
         
@@ -39,9 +46,13 @@ class FileMgr(QObject):
         
     def getDestDirs(self):
         log.info(f"scanning dest dirs under {self.dstFilesPath}")
-        dirlist = next(os.walk(self.dstFilesPath))[1]
-        log.info(f"found {len(dirlist)} dest dirs")
-        dirlist.sort()
+        dirlist = []
+        try:
+            dirlist = next(os.walk(self.dstFilesPath))[1]
+            log.info(f"found {len(dirlist)} dest dirs")
+            dirlist.sort()
+        except Exception as e:
+            log.error(f"Exception:", e)
         return dirlist
         
     def setDestPath(self, newPath):
@@ -57,14 +68,17 @@ class FileMgr(QObject):
 
     # generator function to emit all files under rootPath
     def scanFiles(self, rootPath):
-        for entry in os.scandir(rootPath):
-            if entry.is_file():
-                yield os.path.join(rootPath, entry.name)
-            elif entry.is_dir():
-                yield from self.scanFiles(entry.path)
-            else:
-                log.error(f"Neither a file, nor a dir: {entry.path}")
-                pass 
+        try:
+            for entry in os.scandir(rootPath):
+                if entry.is_file():
+                    yield os.path.join(rootPath, entry.name)
+                elif entry.is_dir():
+                    yield from self.scanFiles(entry.path)
+                else:
+                    log.error(f"Neither a file, nor a dir: {entry.path}")
+                    pass 
+        except Exception as e:
+            log.error(f"Exception:", e)
 
     def loadFiles(self):
         #breakpoint()
@@ -72,6 +86,10 @@ class FileMgr(QObject):
         log.info("scanning source files")
         self.fileList = []
         filesList = list(self.scanFiles(self.srcFilesPath))
+        if len(filesList) == 0:
+            log.info("no source files found")
+            return
+        
         for f in filesList:
             #if not os.path.splitext(f)[1][1:] in DEFAULT_SUPPORTED_FILE_EXTENSIONS:
             #    continue
@@ -101,11 +119,13 @@ class FileMgr(QObject):
 
     def getFilePath(self):
         if len(self.fileList) == 0: 
+            log.info("list is empty")
             return ''
         return self.fileList[self.fileListIndex]
         
     def refresh(self):
         if len(self.fileList) == 0: 
+            log.info("list is empty")
             return
         pixmap = QPixmap(self.fileList[self.fileListIndex])
         filepath = self.fileList[self.fileListIndex]
@@ -114,6 +134,7 @@ class FileMgr(QObject):
 
     def next(self):
         if len(self.fileList) == 0: 
+            log.info("list is empty")
             return
         self.fileListIndex += 1
         if self.fileListIndex >= self.nFilesInList:
@@ -125,6 +146,7 @@ class FileMgr(QObject):
 
     def prev(self):
         if len(self.fileList) == 0: 
+            log.info("list is empty")
             return
         self.fileListIndex -= 1
         if self.fileListIndex < 0:
@@ -133,6 +155,37 @@ class FileMgr(QObject):
         filepath = self.fileList[self.fileListIndex]
         # send preview image to view
         self.signal.emit(pixmap, filepath)
+
+    def removeFileFromList(self, filepath):
+        if len(self.fileList) == 0: 
+            log.info("list is empty")
+            return
+        if not filepath in self.fileList:
+            log.info("path not found in list")
+            return
+        #save current index & path
+        curIndex = self.fileListIndex
+        curPath = self.fileList[curIndex]
+        #get target index
+        tgtIndex = self.fileList.index(filepath)
+        self.fileList.remove(filepath)
+        # update list length
+        self.nFilesInList = len(self.fileList)
+        if (tgtIndex == curIndex):
+            # we deleted the displayed item
+            # set index to prev
+            # and update the view
+            self.fileListIndex -= 1
+            if self.fileListIndex < 0:
+                self.fileListIndex = self.nFilesInList - 1
+            pixmap = QPixmap(self.fileList[self.fileListIndex])
+            filepath = self.fileList[self.fileListIndex]
+            # send preview image to view
+            self.signal.emit(pixmap, filepath)
+        else:
+            # set index of the current item
+            self.fileListIndex = self.fileList.index(curPath)
+
 
     def dumpFiles(self):
         filesList = list(self.scanFiles(self.srcFilesPath))
@@ -164,3 +217,28 @@ class FileMgr(QObject):
                 log.error(f"Exception:", e)
                 pass
 
+    def rotateFile(self):
+        if len(self.fileList) == 0:
+            return
+        filepath = self.fileList[self.fileListIndex]
+        try:
+            img = PIL.Image.open(filepath)
+            img_90 = img.transpose(PIL.Image.ROTATE_90)
+            img_90.save(filepath)
+            pixmap = QPixmap(self.fileList[self.fileListIndex])
+            # update view
+            self.signal.emit(pixmap, filepath)
+        except Exception as e:
+            log.error(f"Exception:", e)
+            pass
+
+def checkPathCreatable(pathname: str) -> bool:
+    dirname = os.path.dirname(pathname) or os.getcwd()
+    return os.access(dirname, os.W_OK)
+
+def checkPathValid(pathname: str) -> bool:
+    try:
+        return checkPathCreatable(pathname) and (
+            os.path.exists(pathname) or checkPathCreatable(pathname))
+    except OSError:
+        return False

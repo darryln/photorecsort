@@ -1,11 +1,13 @@
 #!/usr/bin/python
 
 from defaults import *
-import os
+import os, time
 import PIL
+from PIL.ExifTags import TAGS, GPSTAGS
 from PyQt5.QtCore import pyqtSlot, QSize, QPoint, QRect, QRectF
 from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QResizeEvent, QTransform
-from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction, QMainWindow, QDesktopWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction
+from PyQt5.QtWidgets import QMessageBox, QMainWindow, QDesktopWidget
 from PyQt5.QtCore import Qt, QMimeData
 
 log = logging.getLogger(__name__) 
@@ -13,22 +15,17 @@ log = logging.getLogger(__name__)
 class FileView(QLabel):
 
     def __init__(self, parent):
-        super().__init__()
-        super(QLabel, self).__init__(parent)
+        super().__init__(parent)
         self.parent = parent
         self.setAutoFillBackground(False)
         self.setMinimumSize(1, 1)
-        self.setMaximumSize(QSize(DEFAULT_MAX_SCREEN_HEIGHT, DEFAULT_MAX_SCREEN_HEIGHT))
-
+        self.setScaledContents(False)
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor("LightGray"))
         self.setPalette(palette)
         self.setWindowTitle("View")
-
         self.pixmap = QPixmap()
         self.rotation = 0
-        self.setAlignment(Qt.AlignTop)
-        self.setScaledContents(False)
         self.filepath = ''
         self.showStatusMessage(self.buildStatusMsg())
         self.createActions()
@@ -37,13 +34,43 @@ class FileView(QLabel):
         self.parent.ignoreKeys(True) # block Escape, etc
         contextMenu = QMenu(self)
         contextMenu.addAction(self.action1)
-        contextMenu.addAction(self.action2)
-        contextMenu.addAction(self.action3)
+        #contextMenu.addAction(self.action2)
+        #contextMenu.addAction(self.action3)
         contextMenu.exec_(self.mapToGlobal(event.pos()))
         self.parent.ignoreKeys(False)
 
-    def action1(self):
-        log.info(f"context menu action1 method called")
+    def showFileInfo(self):
+        log.info(f"show file info")
+        if self.filepath == '': 
+            return
+        with PIL.Image.open(self.filepath) as img:
+            mbox = QMessageBox()
+            title = "File Info"
+            mbox.setText(title)
+            mbox.setStandardButtons(QMessageBox.Ok)
+            mbox.setIcon(QMessageBox.Information)
+            msg = f"{img.filename} \n\n"
+
+            #msg += f"Created: {time.ctime(os.path.getctime(self.filepath))}"
+            msg += f"Modified: {time.ctime(os.path.getmtime(self.filepath))}\n\n"
+
+            msg += f"Format: {img.format}\n" \
+            f"Mode: {img.mode}\n" \
+            f"Size: {img.size}\n" \
+            f"Width: {img.width}\n" \
+            f"Height: {img.height}\n" \
+            f"Palette: {img.palette}" 
+            exif = img.getexif()
+        if not exif is None:
+            msg += "\n\nEXIF data: \n"
+            for key, val in exif.items():
+                if key in TAGS:
+                    msg += f"\n{TAGS[key]}:{val}"
+                if key in GPSTAGS:
+                    msg += f"\n{GPSTAGS[key]}:{val}"
+        log.info(msg)
+        mbox.setInformativeText(msg)
+        mbox.exec_()
 
     def action2(self):
         log.info(f"context menu action2 method called")
@@ -52,14 +79,14 @@ class FileView(QLabel):
         log.info(f"context menu action3 method called")
 
     def createActions(self):
-        self.action1 = QAction("Action1", self, #shortcut=QKeySequence.Action1,
-                statusTip="action 1", triggered=self.action1)
+        self.action1 = QAction("Show File Info", self,
+            statusTip="Show detailed file info", triggered=self.showFileInfo)
 
         self.action2 = QAction("Action2", self, #shortcut=QKeySequence.Action2,
-                statusTip="action 2", triggered=self.action2)
+            statusTip="action 2", triggered=self.action2)
 
         self.action3 = QAction("Action3", self, #shortcut=QKeySequence.Action3,
-                statusTip="action 3", triggered=self.action3)
+            statusTip="action 3", triggered=self.action3)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -69,6 +96,8 @@ class FileView(QLabel):
         if not (event.buttons() & Qt.LeftButton):
             return
         if (event.pos() - self.drag_start_position).manhattanLength() < QApplication.startDragDistance():
+            return
+        if self.filepath == '': 
             return
 
         # create drag object & mime payload
@@ -92,8 +121,8 @@ class FileView(QLabel):
         # because the constructor does not zero mem
         iconPixmap.fill(Qt.GlobalColor.transparent)
         # QPainter.drawPixmap scales if you specify QRectF for src & dest
-        srcRectF = QRectF(0.0, 0.0, float(self.pixmap.width()), float(self.pixmap.height()));
-        iconRectF = QRectF(0.0, 0.0, float(iconPixmap.width()), float(iconPixmap.height()));
+        srcRectF = QRectF(0.0, 0.0, float(self.pixmap.width()), float(self.pixmap.height()))
+        iconRectF = QRectF(0.0, 0.0, float(iconPixmap.width()), float(iconPixmap.height()))
         # begin painting
         painter = QPainter(iconPixmap)
         hints = painter.renderHints()
@@ -113,15 +142,35 @@ class FileView(QLabel):
 
     def resizeEvent(self, a0: QResizeEvent) -> None:
         if not self.pixmap.isNull():
-            """
-            s = self.size()
+            #"""
             s0 = QSize(a0.oldSize())
             s1 = QSize(a0.size())
-            log.info(      f"resizeEvent   w { s.width()} x h { s.height()} \n" \
-            f"               event.oldSize w {s0.width()} x h {s0.height()} \n" \
-            f"               event.size    w {s1.width()} x h {s1.height()}")
-            """
+            log.info(  \
+                          f"resizeEvent:          a0.size    w {s1.width()} x h {s1.height()} \n" \
+            f"                                    a0.oldSize w {s0.width()} x h {s0.height()} \n")
+            #"""
             self.showPixmap()
+
+    def showPixmap(self):
+        pixmap = QPixmap(self.pixmap)
+        if self.rotation > 0:
+            transform = QTransform().rotate(self.rotation)
+            pixmap = pixmap.transformed(transform, 
+                Qt.TransformationMode.SmoothTransformation)
+        #"""
+        s0 = super().size()
+        s1 = self.pixmap.size()
+        s2 = pixmap.size()
+        s3 = self.size()
+        log.info( \
+                      f"showPixmap: super QLabel.size    w { s0.width()} x h { s0.height()} \n" \
+        f"                           orig pixmap.size    w { s1.width()} x h { s1.height()} \n" \
+        f"                    transformed pixmap.size    w { s2.width()} x h { s2.height()} \n" \
+        f"                          current self.size    w { s3.width()} x h { s3.height()} \n" )
+        #"""
+        self.setPixmap(pixmap.scaled(s3.width(), s3.height(), 
+            Qt.AspectRatioMode.KeepAspectRatio, 
+            Qt.TransformationMode.SmoothTransformation))
 
     @pyqtSlot(QPixmap, str)
     def updatePreview(self, pixmap: QPixmap, filepath: str):
@@ -134,7 +183,7 @@ class FileView(QLabel):
         self.showStatusMessage(self.buildStatusMsg())
 
     def showStatusMessage(self, msg : str):
-        self.parent.statusbar.showMessage(msg)
+        self.parent.showStatusMessage(msg)
 
     def buildStatusMsg(self):
         s = str()
@@ -180,6 +229,7 @@ class FileView(QLabel):
         (n,i) = self.humanize(nBytes,tags,1)
         return str(n) + tags[i]
 
+    # rotate preview
     def rotate(self):
         self.rotation += 90
         if self.rotation > 270: 
@@ -189,12 +239,3 @@ class FileView(QLabel):
     def resetRotation(self):
         self.rotation = 0
 
-    def showPixmap(self):
-        pixmap = QPixmap(self.pixmap)
-        if self.rotation > 0:
-            transform = QTransform().rotate(self.rotation)
-            pixmap = pixmap.transformed(transform, 
-                Qt.TransformationMode.SmoothTransformation)
-        self.setPixmap(pixmap.scaled(self.width(), self.height(), 
-            Qt.AspectRatioMode.KeepAspectRatio, 
-            Qt.TransformationMode.SmoothTransformation))

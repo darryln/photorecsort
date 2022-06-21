@@ -1,21 +1,23 @@
 #!/usr/bin/python
 
-import os
+import sys, os
 import logging
+from PyQt5.QtWidgets import QApplication, QMessageBox
 
 USER = os.getlogin() 
 
 # This defines the default path to the top dir of a tree 
 # containing "source" files. These files are scanned into a list
 # so the user can browse them and copy to "destination" dirs.
-DEFAULT_SRC_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a646841d/recovered-test')
+DEFAULT_SRC_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a646841d/recovered/recup_dir.213')
 #print('DEFAULT_SRC_FILES_PATH:',DEFAULT_SRC_FILES_PATH)
 # This defines the default path to a dir (outside of the "source" file 
 # tree), which contains one level of subdirs. These subdirs are the 
 # "destination" for copy/move operations from "source" files. 
 DEFAULT_DST_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a646841d/pics')
-#print('DEFAULT_DST_FILES_PATH:',DEFAULT_DST_FILES_PATH)
-DEFAULT_MIN_IMAGE_PIXELS = 100*100  #TODO: implement in filters
+# path to icon files 
+# TODO: compile icons to resource
+DEFAULT_ICON_FILES_PATH = 'res/'
 
 DEFAULT_SUPPORTED_IMAGE_FORMATS = { #TODO: implement in filters
     #format     #mime type
@@ -605,16 +607,43 @@ DEFAULT_SUPPORTED_FILE_EXTENSIONS = [  #TODO: implement in filters
 ]
 
 DEFAULT_MAIN_WINDOW_SIZE_FACTOR=0.66
+DEFAULT_MIN_IMAGE_PIXELS = 639*479  #TODO: implement in filters
 DEFAULT_DRAG_ICON_SIZE=128
 DEFAULT_DRAG_ICON_OPACITY=0.5
-DEFAULT_DEST_BUTTON_WIDTH=200
 DEFAULT_MAX_SCREEN_HEIGHT=2048
 DEFAULT_MAX_SCREEN_HEIGHT=4096
+DEFAULT_DEST_BUTTON_WIDTH=200
+DEFAULT_DEST_BUTTON_HEIGHT=32
+DEFAULT_DEST_BUTTON_ROWS=16
+DEFAULT_DEST_BUTTON_COLS=3
 DEFAULT_APP_NAME = "PhotoRec Sort"
 DEFAULT_ORG_NAME = "Bithead Technology"
 DEFAULT_ORG_DOMAIN = "bitheadtech.com"
-DEFAULT_DEST_BUTTON_ROWS=16
-DEFAULT_DEST_BUTTON_COLS=3
 
 DEFAULT_LOGGING_LEVEL=logging.INFO
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+
+def getTrashBasePath() -> str:
+    return f'/home/{os.getlogin()}/.local/share/Trash'
+
+def getTrashFilesPath() -> str:
+    return f'{getTrashBasePath()}/files'
+
+def getTrashInfoPath() -> str:
+    #return DEFAULT_TRASH_INFO_PATH
+    return f'{getTrashBasePath()}/info'
+
+class FatalError(Exception):
+    def __init__(self, message="Unspecified error"):
+        self.message = message
+        super().__init__(self.message)
+        self.doDialog()
+
+    def __str__(self):
+        return f'{self.message}'
+
+    def doDialog(self):
+        QMessageBox.critical(QApplication.desktop(), 
+        DEFAULT_APP_NAME,
+        f'Fatal error\n\n{self.message}', 
+        QMessageBox.Ok)
