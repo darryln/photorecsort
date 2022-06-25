@@ -1,11 +1,9 @@
-
+ 
 # [Trash Info]
 # Path=/home/embsysdev/some_path_to_file/somefile.ext
 # DeletionDate=2022-06-19T22:24:59
 
-from defaults import *
-from config import *
-import faulthandler; faulthandler.enable()
+#import faulthandler; faulthandler.enable()
 import os, shutil
 from PyQt5.QtWidgets import QPushButton, QMessageBox, QInputDialog
 from PyQt5.QtGui import QDragEnterEvent, QDragLeaveEvent
@@ -13,7 +11,8 @@ from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from send2trash import send2trash
-
+from defaults import *
+from config import *
 from buttons import BTN_H, BTN_ICON_H, BTN_ICON_W, BTN_FONT, BTN_FONT_SIZE, ICON_PATH
 
 DEFAULT_TRASH_FILES_PATH = str('/home/'+USER+'/.local/share/.Trash/files')

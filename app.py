@@ -1,6 +1,7 @@
 #!/usr/bin/python
+""" main application window. """
 
-import faulthandler; faulthandler.enable()
+#import faulthandler; import faulthandler.enable()
 import sys
 from PyQt5.QtCore import Qt, QThread, QEvent, QSize, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import *

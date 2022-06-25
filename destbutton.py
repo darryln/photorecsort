@@ -126,15 +126,15 @@ class DestButton(QPushButton):
                 shutil.move(src, dst)
                 log.info('file moved ok')
                 self.parent.removeFileFromList(src)
-            except Exception as e:
-                log.info('error while moving file')
+            except Exception:
+                log.error('error while moving file', exc_info=True)
                 QMessageBox.critical(self, "Error", "Failed to move or rename.", QMessageBox.Ok)
         elif modifiers == Qt.ControlModifier: # copy file
             try:
                 shutil.copy2(src, dst, False)
                 log.info('file copied ok')
-            except Exception as e:
-                log.info('error while copying file')
+            except Exception:
+                log.error('error while copying file', exc_info=True)
                 QMessageBox.critical(self, "Error", "Failed to copy.", QMessageBox.Ok)
         elif modifiers == Qt.ShiftModifier:
             #log.info('Shift, no action')

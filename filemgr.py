@@ -1,12 +1,49 @@
-from defaults import *
+#!/usr/bin/python
+""" Manage list of file paths, scanning, trees, etc """
+
+import os, time
 import PIL
 import PIL.Image
 import PIL.features
-import os, time
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import QObject, pyqtSignal
+from defaults import *
 
 log = logging.getLogger(__name__)
+
+class FileMgrException(Exception):
+
+    def __init__(self, fpath, msg):
+        self.msg = msg
+        self.fpath = fpath
+        super(FileMgrException, self).__init__(self.msg)
+
+    def __str__(self):
+        return f'{self.msg}:{self.fpath}'
+
+class FileMgrException_NotFound(FileMgrException):
+    def __init__(self, fpath):
+        super().__init__(fpath, "not found")
+
+class FileMgrException_Filtered(FileMgrException):
+    def __init__(self, fpath):
+        super().__init__(fpath, "file filtered")
+
+class FileMgrException_LoadFailed(FileMgrException):
+    def __init__(self, fpath):
+        super().__init__(fpath, "load failed")
+
+class FileMgrException_ImageFormatUnidentified(FileMgrException):
+    def __init__(self, fpath):
+        super().__init__(fpath, "unidentified image format")
+
+class FileMgrException_ImageFormatNotSupported(FileMgrException):
+    def __init__(self, fpath):
+        super().__init__(fpath, "image format not supported")
+
+class FileMgrException_FileTypeNotSupported(FileMgrException):
+    def __init__(self, fpath):
+        super().__init__(fpath, "file type not supported")
 
 class FileMgr(QObject):
     # signal to send a preview of image or other file
@@ -38,21 +75,21 @@ class FileMgr(QObject):
         return self.srcFilesPath
         
     def setSourcePath(self, newPath):
-        log.info(f"setSourcePath:{newPath}")
+        log.info("setSourcePath:%s", newPath)
         self.srcFilesPath = newPath
 
     def getDestPath(self):
         return self.dstFilesPath
         
     def getDestDirs(self):
-        log.info(f"scanning dest dirs under {self.dstFilesPath}")
+        log.info("scanning dest dirs under %s", self.dstFilesPath)
         dirlist = []
         try:
             dirlist = next(os.walk(self.dstFilesPath))[1]
             log.info(f"found {len(dirlist)} dest dirs")
             dirlist.sort()
-        except Exception as e:
-            log.error(f"Exception:", e)
+        except Exception:
+            log.error("getDestDirs:", exc_info=True)
         return dirlist
         
     def setDestPath(self, newPath):
@@ -77,45 +114,8 @@ class FileMgr(QObject):
                 else:
                     log.error(f"Neither a file, nor a dir: {entry.path}")
                     pass 
-        except Exception as e:
-            log.error(f"Exception:", e)
-
-    def loadFiles(self):
-        #breakpoint()
-        start = time.perf_counter()
-        log.info("scanning source files")
-        self.fileList = []
-        filesList = list(self.scanFiles(self.srcFilesPath))
-        if len(filesList) == 0:
-            log.info("no source files found")
-            return
-        
-        for f in filesList:
-            #if not os.path.splitext(f)[1][1:] in DEFAULT_SUPPORTED_FILE_EXTENSIONS:
-            #    continue
-            try:
-                with PIL.Image.open(f) as img:
-                    #ignore small images
-                    if img.width * img.height < DEFAULT_MIN_IMAGE_PIXELS:
-                        img.close()
-                        continue
-                    # ignore unsupported formats
-                    if not img.format in DEFAULT_SUPPORTED_IMAGE_FORMATS:
-                        img.close()
-                        continue
-                    self.fileList.append(f)
-                    img.close()            
-            except PIL.UnidentifiedImageError as e:
-                #log.error(f"Exception:", e)
-                #TODO: process other file type, generate thumbnail preview
-                pass
-            except Exception as e:
-                #log.error(f"Exception:", e)
-                pass
-        self.nFilesInList = len(self.fileList)
-        self.loaded = True
-        et = time.perf_counter()-start
-        log.info(f"found {self.nFilesInList} recovered files in {et:.3f} seconds")
+        except Exception:
+            log.error(f"scanFiles:", exc_info=True)
 
     def getFilePath(self):
         if len(self.fileList) == 0: 
@@ -213,8 +213,8 @@ class FileMgr(QObject):
                     #log.info("Image Info : ",img.info, end=' ')
                     log.info()
                     img.close()            
-            except Exception as e:
-                log.error(f"Exception:", e)
+            except Exception:
+                log.error(f"dumpFiles:", exc_info=True)
                 pass
 
     def rotateFile(self):
@@ -228,9 +228,91 @@ class FileMgr(QObject):
             pixmap = QPixmap(self.fileList[self.fileListIndex])
             # update view
             self.signal.emit(pixmap, filepath)
-        except Exception as e:
-            log.error(f"Exception:", e)
+        except Exception:
+            log.error(f"rotateFile:", exc_info=True)
             pass
+
+    def loadImageFile(self, fpath: str):
+        try:
+            if not os.path.exists(fpath):
+                raise FileMgrException_NotFound
+            basename = os.path.basename(fpath)
+            ext = os.path.splitext(fpath)[1][1:]
+            filtered = False
+            reason = None
+            desc = ''
+            with PIL.Image.open(fpath) as img:
+                width = img.width
+                height = img.height
+                fmt = img.format
+                if width * height < DEFAULT_MIN_IMAGE_PIXELS:
+                    filtered = True
+                    reason = 'resolution'
+                mode = img.mode
+                found = [item for item in DEFAULT_SUPPORTED_IMAGE_FORMATS if item[0] == fmt]
+                if len(found):
+                    desc = found[0][1]                
+                    if found[0][2]:
+                        filtered = True
+                        reason = 'format'
+                log.info("loadImageFile:'%s' '%s' %s %s %d x %d %s" % \
+                    (basename, ext, fmt, mode, width, height, "Filtered" if filtered else "" ))
+                if filtered:
+                    raise FileMgrException_Filtered(fpath)
+        except PIL.UnidentifiedImageError:
+            raise FileMgrException_ImageFormatUnidentified(fpath)
+        finally:
+            pass
+
+    def loadFiles(self):
+        #breakpoint()
+        # TODO: estimate time to scan and show progress dialog
+        start = time.perf_counter()
+        log.info("scanning source files")
+        self.fileList = []
+        scannedFilesList = list(self.scanFiles(self.srcFilesPath))
+        if len(scannedFilesList) == 0:
+            log.info("no files found during scan")
+            return
+        for f in scannedFilesList:
+            try:
+                self.loadImageFile(f)
+                self.fileList.append(f)
+            except FileMgrException_NotFound:
+                # problem loading, skip
+                pass
+            except FileMgrException_LoadFailed:
+                # problem loading, skip
+                pass
+            except FileMgrException_Filtered:
+                # filtered, skip
+                pass
+            except (FileMgrException_ImageFormatNotSupported,
+                FileMgrException_ImageFormatUnidentified):
+                # Pillow can't read it
+                # check recovered file formats
+                #log.info(f"Checking non-image file ")
+                ext = os.path.splitext(f)[1][1:]
+                found = [item for item in DEFAULT_PHOTOREC_FILE_FORMATS 
+                    if item[0] == ext]
+                if len(found):
+                    desc = found[0][1]
+                    filtered = found[0][2]
+                else:
+                    desc = ''
+                    filtered = False
+                #TODO: load icon
+                log.info(f"non-image    :'{os.path.basename(f)}' '{ext}' '{desc}' {'Filtered' if filtered else ''}")
+                self.fileList.append(f)
+            except Exception:
+                log.error(f"loadFiles:", exc_info=True)
+                pass
+        self.nFilesInList = len(self.fileList)
+        self.loaded = True
+        et = time.perf_counter()-start
+        log.info(f"found {self.nFilesInList} recovered files in {et:.3f} seconds")
+
+
 
 def checkPathCreatable(pathname: str) -> bool:
     dirname = os.path.dirname(pathname) or os.getcwd()
@@ -242,3 +324,5 @@ def checkPathValid(pathname: str) -> bool:
             os.path.exists(pathname) or checkPathCreatable(pathname))
     except OSError:
         return False
+
+

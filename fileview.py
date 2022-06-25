@@ -1,7 +1,8 @@
 #!/usr/bin/python
+""" View window """
 
-from defaults import *
-import os, time
+import os
+import time
 import PIL
 from PIL.ExifTags import TAGS, GPSTAGS
 from PyQt5.QtCore import pyqtSlot, QSize, QPoint, QRect, QRectF
@@ -9,6 +10,7 @@ from PyQt5.QtGui import QPalette, QColor, QPixmap, QDrag, QPainter, QResizeEvent
 from PyQt5.QtWidgets import QApplication, QLabel, QMenu, QAction
 from PyQt5.QtWidgets import QMessageBox, QMainWindow, QDesktopWidget
 from PyQt5.QtCore import Qt, QMimeData
+from defaults import *
 
 log = logging.getLogger(__name__) 
 
@@ -40,7 +42,7 @@ class FileView(QLabel):
         self.parent.ignoreKeys(False)
 
     def showFileInfo(self):
-        log.info(f"show file info")
+        log.info("show file info")
         if self.filepath == '': 
             return
         with PIL.Image.open(self.filepath) as img:
@@ -72,21 +74,15 @@ class FileView(QLabel):
         mbox.setInformativeText(msg)
         mbox.exec_()
 
-    def action2(self):
-        log.info(f"context menu action2 method called")
-
-    def action3(self):
-        log.info(f"context menu action3 method called")
-
     def createActions(self):
         self.action1 = QAction("Show File Info", self,
             statusTip="Show detailed file info", triggered=self.showFileInfo)
 
-        self.action2 = QAction("Action2", self, #shortcut=QKeySequence.Action2,
-            statusTip="action 2", triggered=self.action2)
+        #self.action2 = QAction("Action2", self, #shortcut=QKeySequence.Action2,
+        #    statusTip="action 2", triggered=None)
 
-        self.action3 = QAction("Action3", self, #shortcut=QKeySequence.Action3,
-            statusTip="action 3", triggered=self.action3)
+        #self.action3 = QAction("Action3", self, #shortcut=QKeySequence.Action3,
+        #    statusTip="action 3", triggered=None)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -203,8 +199,8 @@ class FileView(QLabel):
                 iwidth = img.width
                 iheight = img.height
                 ipixels = iwidth * iheight
-        except Exception as e:
-            log.info(f"Exception:", e.Message)
+        except Exception:
+            log.error(f"buildStatusMsg:", exc_info=True)
             pass
         
         return f"{self.filepath}, {iformat} {imode}, {iwidth}x{iheight}, " \
