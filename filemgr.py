@@ -312,8 +312,6 @@ class FileMgr(QObject):
         et = time.perf_counter()-start
         log.info(f"found {self.nFilesInList} recovered files in {et:.3f} seconds")
 
-
-
 def checkPathCreatable(pathname: str) -> bool:
     dirname = os.path.dirname(pathname) or os.getcwd()
     return os.access(dirname, os.W_OK)

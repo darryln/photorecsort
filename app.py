@@ -349,8 +349,6 @@ class AppMainWindow(QMainWindow):
         self.destLayout.setAlignment(Qt.AlignRight)
 
         self.hLayout.addWidget(self.fileView, 1)
-        self.fileView.setAlignment(Qt.AlignLeft)
-        self.fileView.setContentsMargins(0, 0, 0, 0)
         self.hLayout.addLayout(self.destLayout)
         self.hLayout.setAlignment(Qt.AlignTop)
 

@@ -31,6 +31,8 @@ class FileView(QLabel):
         self.filepath = ''
         self.showStatusMessage(self.buildStatusMsg())
         self.createActions()
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setContentsMargins(0, 0, 0, 0)
 
     def contextMenuEvent(self, event):
         self.parent.ignoreKeys(True) # block Escape, etc
@@ -45,31 +47,35 @@ class FileView(QLabel):
         log.info("show file info")
         if self.filepath == '': 
             return
-        with PIL.Image.open(self.filepath) as img:
-            mbox = QMessageBox()
-            title = "File Info"
-            mbox.setText(title)
-            mbox.setStandardButtons(QMessageBox.Ok)
-            mbox.setIcon(QMessageBox.Information)
-            msg = f"{img.filename} \n\n"
+        try:
+            with PIL.Image.open(self.filepath) as img:
+                mbox = QMessageBox()
+                title = "File Info"
+                mbox.setText(title)
+                mbox.setStandardButtons(QMessageBox.Ok)
+                mbox.setIcon(QMessageBox.Information)
+                msg = f"{img.filename} \n\n"
 
-            #msg += f"Created: {time.ctime(os.path.getctime(self.filepath))}"
-            msg += f"Modified: {time.ctime(os.path.getmtime(self.filepath))}\n\n"
+                #msg += f"Created: {time.ctime(os.path.getctime(self.filepath))}"
+                msg += f"Modified: {time.ctime(os.path.getmtime(self.filepath))}\n\n"
 
-            msg += f"Format: {img.format}\n" \
-            f"Mode: {img.mode}\n" \
-            f"Size: {img.size}\n" \
-            f"Width: {img.width}\n" \
-            f"Height: {img.height}\n" \
-            f"Palette: {img.palette}" 
-            exif = img.getexif()
-        if not exif is None:
-            msg += "\n\nEXIF data: \n"
-            for key, val in exif.items():
-                if key in TAGS:
-                    msg += f"\n{TAGS[key]}:{val}"
-                if key in GPSTAGS:
-                    msg += f"\n{GPSTAGS[key]}:{val}"
+                msg += f"Format: {img.format}\n" \
+                f"Mode: {img.mode}\n" \
+                f"Size: {img.size}\n" \
+                f"Width: {img.width}\n" \
+                f"Height: {img.height}\n" \
+                f"Palette: {img.palette}" 
+                exif = img.getexif()
+            if not exif is None:
+                msg += "\n\nEXIF data: \n"
+                for key, val in exif.items():
+                    if key in TAGS:
+                        msg += f"\n{TAGS[key]}:{val}"
+                    if key in GPSTAGS:
+                        msg += f"\n{GPSTAGS[key]}:{val}"
+        except PIL.UnidentifiedImageError:
+            msg = "This image file format is not supported."
+
         log.info(msg)
         mbox.setInformativeText(msg)
         mbox.exec_()
@@ -149,24 +155,32 @@ class FileView(QLabel):
 
     def showPixmap(self):
         pixmap = QPixmap(self.pixmap)
-        if self.rotation > 0:
-            transform = QTransform().rotate(self.rotation)
-            pixmap = pixmap.transformed(transform, 
-                Qt.TransformationMode.SmoothTransformation)
-        #"""
-        s0 = super().size()
-        s1 = self.pixmap.size()
-        s2 = pixmap.size()
-        s3 = self.size()
-        log.info( \
-                      f"showPixmap: super QLabel.size    w { s0.width()} x h { s0.height()} \n" \
-        f"                           orig pixmap.size    w { s1.width()} x h { s1.height()} \n" \
-        f"                    transformed pixmap.size    w { s2.width()} x h { s2.height()} \n" \
-        f"                          current self.size    w { s3.width()} x h { s3.height()} \n" )
-        #"""
-        self.setPixmap(pixmap.scaled(s3.width(), s3.height(), 
-            Qt.AspectRatioMode.KeepAspectRatio, 
-            Qt.TransformationMode.SmoothTransformation))
+        if pixmap.size() == QSize(0,0):
+            log.info(f"showPixmap: null pixmap {self.filepath}")
+            #TODO: create pixmap on the fly based on file extension
+            pixmap = QPixmap('res/file-generic.svg')
+            s3 = self.size()
+            self.setPixmap(pixmap.scaled(s3.width()//4, s3.height()//4, 
+                Qt.AspectRatioMode.KeepAspectRatio))
+        else:
+            if self.rotation > 0:
+                transform = QTransform().rotate(self.rotation)
+                pixmap = pixmap.transformed(transform, 
+                    Qt.TransformationMode.SmoothTransformation)
+            #"""
+            s0 = super().size()
+            s1 = self.pixmap.size()
+            s2 = pixmap.size()
+            s3 = self.size()
+            log.info( \
+                        f"showPixmap: super QLabel.size    w { s0.width()} x h { s0.height()} \n" \
+            f"                           orig pixmap.size    w { s1.width()} x h { s1.height()} \n" \
+            f"                    transformed pixmap.size    w { s2.width()} x h { s2.height()} \n" \
+            f"                          current self.size    w { s3.width()} x h { s3.height()} \n" )
+            #"""
+            self.setPixmap(pixmap.scaled(s3.width(), s3.height(), 
+                Qt.AspectRatioMode.KeepAspectRatio, 
+                Qt.TransformationMode.SmoothTransformation))
 
     @pyqtSlot(QPixmap, str)
     def updatePreview(self, pixmap: QPixmap, filepath: str):
@@ -199,13 +213,16 @@ class FileView(QLabel):
                 iwidth = img.width
                 iheight = img.height
                 ipixels = iwidth * iheight
+                return f"{self.filepath}, {iformat} {imode}, {iwidth}x{iheight}, " \
+                        f"{self.humanize_pixels(ipixels)} pixels, {self.humanize_bytes(ifilesize)} on disk"
+        except PIL.UnidentifiedImageError:
+            log.info(f"buildStatusMsg: non-image {self.filepath}")
+            ifilesize = os.stat(self.filepath).st_size
+            return f"{self.filepath}, {self.humanize_bytes(ifilesize)} on disk"
         except Exception:
             log.error(f"buildStatusMsg:", exc_info=True)
-            pass
+        return f"{self.filepath}"
         
-        return f"{self.filepath}, {iformat} {imode}, {iwidth}x{iheight}, " \
-                f"{self.humanize_pixels(ipixels)} pixels, {self.humanize_bytes(ifilesize)} on disk"
-
     def humanize(self, nBytes, tags, precision):
         i = 0
         double_bytes = nBytes
