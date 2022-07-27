@@ -10,7 +10,8 @@
             "request": "launch",
             "module": "app",
             "justMyCode": true,
-            "args": ["-Xfaulthandler"]
+            "args": ["-Xfaulthandler"],
+            "stopOnEntry": false,
         }
     ]
 }

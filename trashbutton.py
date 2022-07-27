@@ -1,10 +1,11 @@
- 
+
 # [Trash Info]
 # Path=/home/embsysdev/some_path_to_file/somefile.ext
 # DeletionDate=2022-06-19T22:24:59
 
 #import faulthandler; faulthandler.enable()
-import os, shutil
+import os
+import shutil
 from PyQt5.QtWidgets import QPushButton, QMessageBox, QInputDialog
 from PyQt5.QtGui import QDragEnterEvent, QDragLeaveEvent
 from PyQt5.QtCore import Qt, QSize, QTimer
@@ -18,10 +19,11 @@ from buttons import BTN_H, BTN_ICON_H, BTN_ICON_W, BTN_FONT, BTN_FONT_SIZE, ICON
 DEFAULT_TRASH_FILES_PATH = str('/home/'+USER+'/.local/share/.Trash/files')
 DEFAULT_TRASH_INFO_PATH = str('/home/'+USER+'/.local/share/.Trash/info')
 
+
 class TrashButton(QPushButton):
     def __init__(self, parent):
         super().__init__()
-        super(QPushButton, self).__init__(parent)        
+        super(QPushButton, self).__init__(parent)
         self.parent = parent
         self.setMinimumHeight(BTN_H)
         self.setFont(QFont(BTN_FONT, BTN_FONT_SIZE))
@@ -29,7 +31,7 @@ class TrashButton(QPushButton):
         self.iconEmpty = QIcon(ICON_PATH+'trash.svg')
         self.iconFull = QIcon(ICON_PATH+'trash-full.svg')
         self.updateIcon()
-        self.setToolTip('Trash Can')  
+        self.setToolTip('Trash Can')
         self.setText('')
         self.setAcceptDrops(True)
         self.clicked.connect(self.clickHandler)
@@ -37,7 +39,7 @@ class TrashButton(QPushButton):
         self.normalStyle = 'QPushButton {background-color: white}'
         # update icon on a timer
         self.refreshTimer = QTimer(self)
-        self.refreshTimer.setInterval(1000) # milliseconds
+        self.refreshTimer.setInterval(1000)  # milliseconds
         self.refreshTimer.setSingleShot(False)
         self.refreshTimer.timeout.connect(self.updateIcon)
 
@@ -52,7 +54,7 @@ class TrashButton(QPushButton):
         if os.path.isdir(p):
             if not os.listdir(p):
                 return True
-            else:    
+            else:
                 return False
         else:
             msg = f"Cannot find system trash '{getTrashBasePath()}'"
@@ -61,6 +63,7 @@ class TrashButton(QPushButton):
 
     def clickHandler(self):
         log.info(f"Trash button clicked")
+        # return
         """
         self.parent.ignoreKeys(True)
         QMessageBox.information(self, 
@@ -69,17 +72,19 @@ class TrashButton(QPushButton):
             QMessageBox.Ok)
         self.parent.ignoreKeys(False)
         """
-        src = self.parent.getCurrentFilePath()
-        src = src.strip()
-        if src == '':
-            return
-        log.info(f"trashing: {src}")
-        try:
-            send2trash(src)
-            log.info(f"moved to trash ok")
-            self.parent.removeFileFromList(src)
-        except:
-            log.info(f"error moving to trash")
+        selection = self.parent.getFileView().getSelectedFilesList()
+
+        for srcPath in selection:
+            srcPath = srcPath.strip()
+            if srcPath == '':
+                return
+            log.info(f"trashing: {srcPath}")
+            try:
+                send2trash(srcPath)
+                log.info(f"moved to trash ok")
+                self.parent.getFileManager().removeFileFromList(srcPath)
+            except:
+                log.info(f"error moving to trash")
 
     def dragEnterEvent(self, a0):
         if a0.mimeData().hasFormat('text/plain'):

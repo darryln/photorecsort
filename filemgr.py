@@ -1,53 +1,17 @@
 #!/usr/bin/python
-""" Manage list of file paths, scanning, trees, etc """
+""" Manage list of file paths """
 
 import os, time
-import PIL
-import PIL.Image
-import PIL.features
-from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import QObject, pyqtSignal
+import PIL.Image
 from defaults import *
 
 log = logging.getLogger(__name__)
 
-class FileMgrException(Exception):
-
-    def __init__(self, fpath, msg):
-        self.msg = msg
-        self.fpath = fpath
-        super(FileMgrException, self).__init__(self.msg)
-
-    def __str__(self):
-        return f'{self.msg}:{self.fpath}'
-
-class FileMgrException_NotFound(FileMgrException):
-    def __init__(self, fpath):
-        super().__init__(fpath, "not found")
-
-class FileMgrException_Filtered(FileMgrException):
-    def __init__(self, fpath):
-        super().__init__(fpath, "file filtered")
-
-class FileMgrException_LoadFailed(FileMgrException):
-    def __init__(self, fpath):
-        super().__init__(fpath, "load failed")
-
-class FileMgrException_ImageFormatUnidentified(FileMgrException):
-    def __init__(self, fpath):
-        super().__init__(fpath, "unidentified image format")
-
-class FileMgrException_ImageFormatNotSupported(FileMgrException):
-    def __init__(self, fpath):
-        super().__init__(fpath, "image format not supported")
-
-class FileMgrException_FileTypeNotSupported(FileMgrException):
-    def __init__(self, fpath):
-        super().__init__(fpath, "file type not supported")
-
+ 
 class FileMgr(QObject):
-    # signal to send a preview of image or other file
-    signal = pyqtSignal(QPixmap, str)
+    # signal to send list of file paths
+    signal = pyqtSignal(list)
 
     def __init__(self, name=None):
         super().__init__()
@@ -58,6 +22,7 @@ class FileMgr(QObject):
         self.fileList = []
         self.fileListIndex = 0
         self.nFilesInList = len(self.fileList)
+        self.stride = 1
         #log.info("pilinfo:")
         #PIL.features.pilinfo(out=None, supported_formats=False)
         #PIL.features.get_supported()
@@ -65,11 +30,20 @@ class FileMgr(QObject):
     def isLoaded(self): 
         return self.loaded
 
+    def setStride(self, stride:int):
+        self.stride = stride
+
+    def getStride(self):
+        return self.stride
+
     def getNumFilesInList(self) -> int:
         return len(self.fileList)
 
     def getCurrentFileIndex(self) -> int:
         return self.fileListIndex
+
+    def getFilesList(self) -> list:
+        return self.fileList
 
     def getSourcePath(self):
         return self.srcFilesPath
@@ -123,38 +97,58 @@ class FileMgr(QObject):
             return ''
         return self.fileList[self.fileListIndex]
         
+    def getPathListSlice(self, list, index, stride):
+        # build list of paths to be emitted
+        if self.fileListIndex+self.stride < len(self.fileList):
+            # no wrap required
+            firstPart = self.fileList[self.fileListIndex : self.fileListIndex+self.stride]
+            nextPart = []
+        else:
+            # wrap required
+            firstPart = self.fileList[self.fileListIndex : ]
+            nextPart = self.fileList[0 : self.stride - len(firstPart)]
+        pathList = firstPart + nextPart
+        return pathList
+
     def refresh(self):
         if len(self.fileList) == 0: 
             log.info("list is empty")
             return
-        pixmap = QPixmap(self.fileList[self.fileListIndex])
-        filepath = self.fileList[self.fileListIndex]
-        # send preview image to view
-        self.signal.emit(pixmap, filepath)
+        pathList = self.getPathListSlice(self.fileList, self.fileListIndex, self.stride)
+        # send path list slice to view
+        self.signal.emit(pathList)
 
     def next(self):
         if len(self.fileList) == 0: 
             log.info("list is empty")
             return
-        self.fileListIndex += 1
-        if self.fileListIndex >= self.nFilesInList:
-            self.fileListIndex = 0
-        pixmap = QPixmap(self.fileList[self.fileListIndex])
-        filepath = self.fileList[self.fileListIndex]
-        # send new preview image to view
-        self.signal.emit(pixmap, filepath)
+        if self.fileListIndex + self.stride < len(self.fileList):
+            # no wrap
+            self.fileListIndex += self.stride
+        else:
+            # wrap
+            self.fileListIndex = self.fileListIndex + self.stride - len(self.fileList)
+        pathList = self.getPathListSlice(self.fileList, self.fileListIndex, self.stride)
+        # send path list slice to view
+        self.signal.emit(pathList)
 
     def prev(self):
         if len(self.fileList) == 0: 
             log.info("list is empty")
             return
-        self.fileListIndex -= 1
-        if self.fileListIndex < 0:
-            self.fileListIndex = self.nFilesInList - 1
-        pixmap = QPixmap(self.fileList[self.fileListIndex])
-        filepath = self.fileList[self.fileListIndex]
-        # send preview image to view
-        self.signal.emit(pixmap, filepath)
+        if self.fileListIndex - self.stride >= 0:
+            # no wrap
+            self.fileListIndex -= self.stride
+        else:
+            # wrap
+            self.fileListIndex = self.fileListIndex - self.stride + len(self.fileList)
+        pathList = self.getPathListSlice(self.fileList, self.fileListIndex, self.stride)
+        # send path list to view
+        self.signal.emit(pathList)
+
+    def removeFileFromList(self, pathList : list):
+        for path in pathList:
+            self.removeFileFromList(path)
 
     def removeFileFromList(self, filepath):
         if len(self.fileList) == 0: 
@@ -163,28 +157,33 @@ class FileMgr(QObject):
         if not filepath in self.fileList:
             log.info("path not found in list")
             return
-        #save current index & path
+        # save current index & path
         curIndex = self.fileListIndex
         curPath = self.fileList[curIndex]
-        #get target index
+        # get index of item to delete
         tgtIndex = self.fileList.index(filepath)
+        # remove item from list
         self.fileList.remove(filepath)
         # update list length
         self.nFilesInList = len(self.fileList)
-        if (tgtIndex == curIndex):
-            # we deleted the displayed item
-            # set index to prev
-            # and update the view
-            self.fileListIndex -= 1
-            if self.fileListIndex < 0:
-                self.fileListIndex = self.nFilesInList - 1
-            pixmap = QPixmap(self.fileList[self.fileListIndex])
-            filepath = self.fileList[self.fileListIndex]
-            # send preview image to view
-            self.signal.emit(pixmap, filepath)
+        if self.nFilesInList == 0:
+            QApplication.instance().statusbar.showMessage("No files.")
+            self.fileListIndex = -1
         else:
-            # set index of the current item
-            self.fileListIndex = self.fileList.index(curPath)
+            # update list index
+            # TODO: adjust index based on last user nav direction.
+            # for now, just decrement the index and wrap
+            if (tgtIndex == curIndex):
+                # deleted item @ curr index, decrement/wrap index 
+                self.fileListIndex -= 1
+                if self.fileListIndex < 0:
+                    self.fileListIndex = self.nFilesInList - 1
+            else:
+                # get index of the current item
+                self.fileListIndex = self.fileList.index(curPath)
+        # update the view with new path list
+        # TODO: skip refresh if item was not currently displayed
+        self.refresh()
 
 
     def dumpFiles(self):
@@ -217,51 +216,17 @@ class FileMgr(QObject):
                 log.error(f"dumpFiles:", exc_info=True)
                 pass
 
-    def rotateFile(self):
+    def rotateFile(self, filePath):
         if len(self.fileList) == 0:
             return
-        filepath = self.fileList[self.fileListIndex]
         try:
-            img = PIL.Image.open(filepath)
+            img = PIL.Image.open(filePath)
             img_90 = img.transpose(PIL.Image.ROTATE_90)
-            img_90.save(filepath)
-            pixmap = QPixmap(self.fileList[self.fileListIndex])
+            img_90.save(filePath)
             # update view
-            self.signal.emit(pixmap, filepath)
+            self.refresh()
         except Exception:
             log.error(f"rotateFile:", exc_info=True)
-            pass
-
-    def loadImageFile(self, fpath: str):
-        try:
-            if not os.path.exists(fpath):
-                raise FileMgrException_NotFound
-            basename = os.path.basename(fpath)
-            ext = os.path.splitext(fpath)[1][1:]
-            filtered = False
-            reason = None
-            desc = ''
-            with PIL.Image.open(fpath) as img:
-                width = img.width
-                height = img.height
-                fmt = img.format
-                if width * height < DEFAULT_MIN_IMAGE_PIXELS:
-                    filtered = True
-                    reason = 'resolution'
-                mode = img.mode
-                found = [item for item in DEFAULT_SUPPORTED_IMAGE_FORMATS if item[0] == fmt]
-                if len(found):
-                    desc = found[0][1]                
-                    if found[0][2]:
-                        filtered = True
-                        reason = 'format'
-                log.info("loadImageFile:'%s' '%s' %s %s %d x %d %s" % \
-                    (basename, ext, fmt, mode, width, height, "Filtered" if filtered else "" ))
-                if filtered:
-                    raise FileMgrException_Filtered(fpath)
-        except PIL.UnidentifiedImageError:
-            raise FileMgrException_ImageFormatUnidentified(fpath)
-        finally:
             pass
 
     def loadFiles(self):
@@ -274,39 +239,7 @@ class FileMgr(QObject):
         if len(scannedFilesList) == 0:
             log.info("no files found during scan")
             return
-        for f in scannedFilesList:
-            try:
-                self.loadImageFile(f)
-                self.fileList.append(f)
-            except FileMgrException_NotFound:
-                # problem loading, skip
-                pass
-            except FileMgrException_LoadFailed:
-                # problem loading, skip
-                pass
-            except FileMgrException_Filtered:
-                # filtered, skip
-                pass
-            except (FileMgrException_ImageFormatNotSupported,
-                FileMgrException_ImageFormatUnidentified):
-                # Pillow can't read it
-                # check recovered file formats
-                #log.info(f"Checking non-image file ")
-                ext = os.path.splitext(f)[1][1:]
-                found = [item for item in DEFAULT_PHOTOREC_FILE_FORMATS 
-                    if item[0] == ext]
-                if len(found):
-                    desc = found[0][1]
-                    filtered = found[0][2]
-                else:
-                    desc = ''
-                    filtered = False
-                #TODO: load icon
-                log.info(f"non-image    :'{os.path.basename(f)}' '{ext}' '{desc}' {'Filtered' if filtered else ''}")
-                self.fileList.append(f)
-            except Exception:
-                log.error(f"loadFiles:", exc_info=True)
-                pass
+        self.fileList = scannedFilesList
         self.nFilesInList = len(self.fileList)
         self.loaded = True
         et = time.perf_counter()-start

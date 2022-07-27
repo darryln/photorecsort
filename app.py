@@ -13,6 +13,7 @@ from buttons import *
 from config import *
 from trashbutton import TrashButton
 from destbutton import DestButton
+import debugpy
 
 log = logging.getLogger("app")
 
@@ -26,6 +27,7 @@ class SourceFilesScanThread(QThread):
         self.fileMgr = ref
 
     def run(self):
+        debugpy.debug_this_thread()
         log.info("SourceFilesScanThread: entry")
         # call load function
         self.fileMgr.loadFiles()
@@ -51,7 +53,7 @@ class AppMainWindow(QMainWindow):
         self.loadDestDirs(self.fileMgr.getDestPath())
 
     def getCurrentFilePath(self):
-        return self.fileMgr.getFilePath()
+        return None
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.KeyPress: #or event.type() == QEvent.KeyRelease:
@@ -112,25 +114,22 @@ class AppMainWindow(QMainWindow):
 
     def nextBtnClicked(self):
         #log.info('next button clicked')
-        if self.fileMgr.getNumFilesInList() == 0:
-            self.statusbar.showMessage("No files.")
-            self.fileView.clear()
         self.fileMgr.next()
+        self.showStatusMessage('')
 
     @pyqtSlot()
     def filesLoaded(self):
         log.info('filesLoaded got signal')
-        # connect View slot to Files signal
-        self.fileMgr.signal.connect(self.fileView.updatePreview)
+        # connect FileView slot to FileMgr signal
+        self.fileMgr.signal.connect(self.fileView.updateView)
         # enable buttons
         self.enableButtons()
         # restore normal mouse cursor
         arrow = Qt.CursorShape.ArrowCursor
         QApplication.setOverrideCursor(arrow)
         self.fileMgr.refresh()
-        if self.fileMgr.getNumFilesInList() == 0:
-            self.statusbar.showMessage("No files.")
-            self.fileView.clear()
+        self.showStatusMessage('')
+        #self.fileView.clear()
 
     def disableButtons(self):
         self.configBtn.setEnabled(False)
@@ -139,7 +138,7 @@ class AppMainWindow(QMainWindow):
         self.setDestBtn.setEnabled(False)
         self.prevBtn.setEnabled(False)
         self.nextBtn.setEnabled(False)
-        self.rotateBtn.setEnabled(False)
+        #self.rotateBtn.setEnabled(False)
         self.trashBtn.setEnabled(False)
         self.quitBtn.setEnabled(False)
 
@@ -150,22 +149,14 @@ class AppMainWindow(QMainWindow):
         self.setDestBtn.setEnabled(True)
         self.prevBtn.setEnabled(True)
         self.nextBtn.setEnabled(True)
-        self.rotateBtn.setEnabled(True)
+        #self.rotateBtn.setEnabled(True)
         self.trashBtn.setEnabled(True)
         self.quitBtn.setEnabled(True)
 
-    def removeFileFromList(self, filepath):
-        self.fileMgr.removeFileFromList(filepath)
-        if self.fileMgr.getNumFilesInList() == 0:
-            self.statusbar.showMessage("No files.")
-            self.fileView.clear()
-
     def prevBtnClicked(self):
         #log.info('prev clicked')
-        if self.fileMgr.getNumFilesInList() == 0:
-            self.statusbar.showMessage("No files.")
-            self.fileView.clear()
         self.fileMgr.prev()
+        self.showStatusMessage('')
 
     # called on Quit button clicked
     def quitBtnClicked(self):
@@ -195,7 +186,7 @@ class AppMainWindow(QMainWindow):
 
     def startLoaderThread(self, srcFilesPath):
         # clear displayed frame
-        self.fileView.clear()
+        #self.fileView.clear()
         # disable buttons while loading files
         self.disableButtons()
         # show hourglass mouse cursor while loading
@@ -251,16 +242,12 @@ class AppMainWindow(QMainWindow):
 
     def showStatusMessage(self, msg : str):
         n = self.fileMgr.getNumFilesInList()
-        i = 1 + self.fileMgr.getCurrentFileIndex()
-        self.statusbar.showMessage(f"File {i} of {n}: {msg}")
-
-    def rotateBtnClicked(self):
-        if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
-            # rotate file (destructive)
-            self.fileMgr.rotateFile()
+        i0 = 1 + self.fileMgr.getCurrentFileIndex()
+        i1 = i0 + self.fileMgr.getStride() - 1
+        if n == 0:
+            self.statusbar.showMessage("No files.")
         else:
-            # rotate preview (non-destructive)
-            self.fileView.rotate()
+            self.statusbar.showMessage(f"Files {i0}-{i1} of {n} {msg}")
 
     # called on main window "X" closer clicked
     def closeEvent(self, event):
@@ -315,8 +302,8 @@ class AppMainWindow(QMainWindow):
         self.prevBtn = PrevButton(self)
         self.prevBtn.clicked.connect(self.prevBtnClicked)
 
-        self.rotateBtn = RotateButton(self)
-        self.rotateBtn.clicked.connect(self.rotateBtnClicked)
+        #self.rotateBtn = RotateButton(self)
+        #self.rotateBtn.clicked.connect(self.rotateBtnClicked)
 
         self.trashBtn = TrashButton(self)
         # TrashButton class handles click & drop
@@ -332,7 +319,7 @@ class AppMainWindow(QMainWindow):
         self.btnLayout.addWidget(self.setDestBtn)
         self.btnLayout.addWidget(self.prevBtn)
         self.btnLayout.addWidget(self.nextBtn)
-        self.btnLayout.addWidget(self.rotateBtn)
+        #self.btnLayout.addWidget(self.rotateBtn)
         self.btnLayout.addWidget(self.trashBtn)
         self.btnLayout.addWidget(self.quitBtn)
         self.btnLayout.setAlignment(Qt.AlignBottom)
@@ -360,7 +347,14 @@ class AppMainWindow(QMainWindow):
         cw.setLayout(self.mainLayout)
         self.setCentralWidget(cw)
 
+    def getFileManager(self) -> FileMgr:
+        return self.fileMgr
+
+    def getFileView(self) -> FileView:
+        return self.fileView
+
 def main():
+    #global app
     ConfigCheck()
     app = QApplication(sys.argv)
     w = AppMainWindow()

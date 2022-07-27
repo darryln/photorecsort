@@ -9,7 +9,7 @@ USER = os.getlogin()
 # This defines the default path to the top dir of a tree 
 # containing "source" files. These files are scanned into a list
 # so the user can browse them and copy to "destination" dirs.
-DEFAULT_SRC_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a646841d/recovered/recup_dir.215')
+DEFAULT_SRC_FILES_PATH = str('/media/'+USER+'/c8f652a8-72b3-4877-88ef-7710a646841d/recovered-test/')
 #print('DEFAULT_SRC_FILES_PATH:',DEFAULT_SRC_FILES_PATH)
 # This defines the default path to a dir (outside of the "source" file 
 # tree), which contains one level of subdirs. These subdirs are the 

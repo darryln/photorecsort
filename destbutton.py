@@ -6,6 +6,9 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 from filemgr import checkPathValid
+import json
+
+log = logging.getLogger(__name__)
 
 # dest button params
 DBTN_H = DEFAULT_DEST_BUTTON_HEIGHT
@@ -107,15 +110,17 @@ class DestButton(QPushButton):
         if not self.clickEnabled:
             return
         log.info(f"{self.text()} button clicked")
-        src = self.parent.getCurrentFilePath()
-        src = src.strip()
-        if src == '':
+        # get list of selected src files
+        srcFileList = self.getSelectedFilesList()
+        if len(srcFileList) == 0:
+            log.info("no src files selected")
             return
-        # build dest file full path
-        # dest path + our dir + src's base filename
+        # run fileOp for each src file
         d = os.path.sep
-        dst = self.dstFilesPath + d + self.text() + d + os.path.basename(src)
-        self.fileOp(src,dst, QApplication.keyboardModifiers())
+        for src in srcFileList:
+            # dest path + our dir + src's base filename
+            dst = self.dstFilesPath + d + self.text() + d + os.path.basename(src)
+            self.fileOp(src, dst, QApplication.keyboardModifiers())
 
     def fileOp(self, src, dst, modifiers):
         text = self.text()
@@ -125,7 +130,7 @@ class DestButton(QPushButton):
             try:
                 shutil.move(src, dst)
                 log.info('file moved ok')
-                self.parent.removeFileFromList(src)
+                self.parent.getFileManager().removeFileFromList(src)
             except Exception:
                 log.error('error while moving file', exc_info=True)
                 QMessageBox.critical(self, "Error", "Failed to move or rename.", QMessageBox.Ok)
@@ -164,18 +169,24 @@ class DestButton(QPushButton):
         if not self.dropEnabled: 
             a0.ignore()
             return
-        """
-        QMessageBox.information(self, 
+
+        """QMessageBox.information(self, 
             'Text dropped: ',
-            e.mimeData().text(),
-            QMessageBox.Ok)
-        """
-        src = a0.mimeData().text()
+            a0.mimeData().text(),
+            QMessageBox.Ok)"""
+        srcFileList = json.loads(a0.mimeData().text())
+        log.info("dropped:'%s'", srcFileList)
         # build dest file full path
         # dest path + our dir + src's base filename
         d = os.path.sep
-        dst = self.dstFilesPath + d + self.text() + d + os.path.basename(src)
-        self.fileOp(src,dst, QApplication.keyboardModifiers())
+        for src in srcFileList:
+            dst = self.dstFilesPath + d + self.text() + d + os.path.basename(src)
+            self.fileOp(src, dst, QApplication.keyboardModifiers())
         self.setStyleSheet(self.normalStyle)
         a0.accept()
 
+    def getFilesList(self) -> list:
+        return self.parent.getFileManager().getFilesList()
+
+    def getSelectedFilesList(self) -> list:
+        return self.parent.getFileView().getSelectedFilesList()
